@@ -2,15 +2,15 @@ import React, { useState, useRef } from 'react';
 import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText } from 'lucide-react';
 
 const FuelIntegrityApp = () => {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
   const [currentView, setCurrentView] = useState('login');
   const [menuOpen, setMenuOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
-  const [scannedData, setScannedData] = useState(null);
-  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [showInspectionReport, setShowInspectionReport] = useState(false);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const [depots] = useState([
     { id: 'DEP-001', name: 'Kipevu Oil Storage Facility', location: 'Mombasa, Coast', company: 'Kenya Pipeline Company', capacity: 450000, current: 385000, contact: 'John Mwangi', phone: '+254 722 123456', email: 'j.mwangi@kpc.co.ke', website: 'www.kpc.co.ke', coordinates: '-4.0435, 39.6682' },
@@ -74,7 +74,7 @@ const FuelIntegrityApp = () => {
     setScannerActive(false);
   };
 
-  const handleLogin = (role) => {
+  const handleLogin = (role: string) => {
     setCurrentUser({ role, name: role === 'admin' ? 'Admin User' : role === 'operator' ? 'Depot Operator' : 'Inspector' });
     setCurrentView('dashboard');
   };
@@ -85,7 +85,7 @@ const FuelIntegrityApp = () => {
     setMenuOpen(false);
   };
 
-  const simulateQRScan = (type) => {
+  const simulateQRScan = (type: 'loading' | 'delivery') => {
     const mockData = {
       loading: JSON.stringify({ txnId: 'TXN-003', from: 'Main Depot', to: 'Station C', vehicle: 'DEF-456', volume: 4000, type: 'Diesel', timestamp: new Date().toISOString() }),
       delivery: JSON.stringify({ txnId: 'TXN-001', confirmed: true, timestamp: new Date().toISOString() })
@@ -393,7 +393,7 @@ const FuelIntegrityApp = () => {
 
   // ── REPORTS ──
   const ReportsView = () => {
-    const [activeReport, setActiveReport] = useState(null);
+    const [activeReport, setActiveReport] = useState<string | null>(null);
     const genStock = () => ({ title: 'Stock Movement Report', summary: { totalReceipts: stockData.reduce((a, b) => a + (b.receipts || 0), 0), totalWithdrawals: stockData.reduce((a, b) => a + (b.withdrawals || 0), 0), totalLosses: stockData.reduce((a, b) => a + (b.losses || 0), 0) }, details: stockData });
     const genTxn = () => ({ title: 'Transaction History', summary: { total: transactions.length, completed: transactions.filter(t => t.status === 'completed').length, inTransit: transactions.filter(t => t.status === 'in-transit').length, totalVolume: transactions.reduce((a, b) => a + b.volume, 0) }, transactions });
 
