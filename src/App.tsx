@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -99,7 +100,7 @@ const FuelIntegrityApp = () => {
   };
 
   const handleLogin = (role: string) => {
-    setCurrentUser({ role, name: role === 'admin' ? 'Admin User' : role === 'operator' ? 'Depot Operator' : 'Inspector' });
+    setCurrentUser({ role, name: role === 'admin' ? 'Admin User' : role === 'operator' ? 'Depot Operator' : role === 'station_operator' ? 'Station Operator' : 'Inspector' });
     setCurrentView('dashboard');
   };
 
@@ -136,7 +137,8 @@ const FuelIntegrityApp = () => {
         <div className="space-y-4">
           <button onClick={() => handleLogin('admin')} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Login as Administrator</button>
           <button onClick={() => handleLogin('operator')} className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">Login as Depot Operator</button>
-          <button onClick={() => handleLogin('inspector')} className="w-full bg-green-800 text-white py-3 rounded-lg font-semibold hover:bg-green-900 transition">Login as Inspector</button>
+          <button onClick={() => handleLogin('station_operator')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Login as Station Operator</button>
+          <button disabled className="w-full bg-gray-400 text-white py-3 rounded-lg font-semibold cursor-not-allowed opacity-60">Login as Inspector</button>
         </div>
         <div className="mt-6 pt-6 border-t text-center">
           <p className="text-xs text-gray-500">Republic of Kenya</p>
@@ -156,14 +158,6 @@ const FuelIntegrityApp = () => {
           <p className="text-sm font-semibold text-green-700">{currentUser?.name}</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Transactions</p><p className="text-2xl font-bold text-green-600">{transactions.filter(t => t.status === 'in-transit').length}</p></div><Truck className="w-8 h-8 text-green-600" /></div>
-        </div>
-        <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Completed Today</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(t => t.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
-        </div>
-      </div>
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold text-gray-800 mb-3">National Stock Level</h3>
         <div className="grid grid-cols-3 gap-3">
@@ -176,6 +170,14 @@ const FuelIntegrityApp = () => {
           <div className="bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-600">
             <p className="text-xs text-gray-600">Kerosene (L)</p><p className="text-lg font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
           </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-600">
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Transactions</p><p className="text-2xl font-bold text-green-600">{transactions.filter(t => t.status === 'in-transit').length}</p></div><Truck className="w-8 h-8 text-green-600" /></div>
+        </div>
+        <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Completed Today</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(t => t.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -214,12 +216,38 @@ const FuelIntegrityApp = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setSelectedTransaction(null)}>
         <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
-          <div className="sticky top-0 bg-gradient-to-r from-green-700 to-green-600 text-white p-4 flex items-center justify-between rounded-t-lg">
-            <div>
-              <h3 className="font-bold text-lg">SCT Loading Details</h3>
-              <p className="text-green-100 text-sm">{txn.id}</p>
+          <div className="sticky top-0 bg-gradient-to-r from-green-700 to-green-600 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">SCT Loading Details</h3>
+                <p className="text-green-100 text-sm">{txn.id}</p>
+              </div>
+              <button onClick={() => setSelectedTransaction(null)} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
-            <button onClick={() => setSelectedTransaction(null)} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
+            <div className="mt-3 flex items-center gap-3 bg-white bg-opacity-10 rounded-lg p-3">
+              <QRCodeSVG
+                value={JSON.stringify({
+                  transactionId: txn.id,
+                  from: txn.from,
+                  to: txn.to,
+                  volume: txn.volume,
+                  type: txn.type,
+                  vehicle: txn.vehicle,
+                  sealNumber: txn.sealNumberLoading,
+                  markerBatchNo: txn.markerBatchNo,
+                  loadingTicket: txn.loadingTicket,
+                  expectedDelivery: txn.expectedDelivery,
+                })}
+                size={80}
+                bgColor="transparent"
+                fgColor="#ffffff"
+                level="M"
+              />
+              <div className="text-xs text-green-100">
+                <p className="font-semibold text-white text-sm mb-1">Consignment QR</p>
+                <p>Scan to receive this fuel consignment via SCT</p>
+              </div>
+            </div>
           </div>
           <div className="p-4 space-y-4">
             {/* Status Banner */}
@@ -1257,7 +1285,6 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">EPRA Menu</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
-          <button onClick={() => { setCurrentView('directory'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Building2 className="w-5 h-5 text-green-600" /><span>Location Directory</span></button>
           <button className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
           <button className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
           <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>Logout</span></button>
