@@ -179,7 +179,7 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Inspections This Month</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
         </div>
         <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Market Compliance</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Market Compliance</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
         </div>
       </div>
       <div className="bg-white rounded-lg shadow p-4">
