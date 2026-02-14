@@ -163,23 +163,30 @@ const FuelIntegrityApp = () => {
         <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Completed Today</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(t => t.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
         </div>
-        <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Diesel Stock (L)</p><p className="text-2xl font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-blue-600" /></div>
+      </div>
+      <div className="bg-white rounded-lg shadow p-4">
+        <h3 className="font-semibold text-gray-800 mb-3">National Stock Level</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-600">
+            <p className="text-xs text-gray-600">Diesel (L)</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p>
+          </div>
+          <div className="bg-amber-50 p-3 rounded-lg border-l-4 border-amber-600">
+            <p className="text-xs text-gray-600">Gasoline (L)</p><p className="text-lg font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p>
+          </div>
+          <div className="bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-600">
+            <p className="text-xs text-gray-600">Kerosene (L)</p><p className="text-lg font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
+          </div>
         </div>
-        <div className="bg-amber-50 p-4 rounded-lg border-l-4 border-amber-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Gasoline Stock (L)</p><p className="text-2xl font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-amber-600" /></div>
-        </div>
-        <div className="bg-cyan-50 p-4 rounded-lg border-l-4 border-cyan-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Kerosene Stock (L)</p><p className="text-2xl font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-cyan-600" /></div>
-        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-600">
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Incidents</p><p className="text-2xl font-bold text-red-600">{incidents.filter(i => i.status === 'open').length}</p></div><AlertCircle className="w-8 h-8 text-red-600" /></div>
         </div>
         <div className="bg-indigo-50 p-4 rounded-lg border-l-4 border-indigo-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Depots</p><p className="text-2xl font-bold text-indigo-600">{depots.length}</p></div><Building2 className="w-8 h-8 text-indigo-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Fuel Depots</p><p className="text-2xl font-bold text-indigo-600">{depots.length}</p></div><Building2 className="w-8 h-8 text-indigo-600" /></div>
         </div>
         <div className="bg-teal-50 p-4 rounded-lg border-l-4 border-teal-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Stations</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Fuel Stations</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
         </div>
         <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-600">
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Monthly Inspections</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
@@ -340,33 +347,6 @@ const FuelIntegrityApp = () => {
     </div>
   );
 
-  // ── WSM ──
-  const WSMView = () => (
-    <div className="p-4 space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800">Wet Stock Management</h2>
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-4 border-b"><h3 className="font-semibold text-gray-800">Stock Levels</h3></div>
-        {stockData.slice(0, 6).map((stock, i) => (
-          <div key={i} className="p-4 border-b last:border-b-0">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                {stock.location.includes('Depot') || stock.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
-                <span className="font-semibold text-gray-800 text-sm">{stock.location}</span>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${stock.variance < 0.2 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{stock.variance < 0.2 ? 'Normal' : 'Alert'}</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Current Stock</span><span className="font-semibold">{stock.current.toLocaleString()} L</span></div>
-              <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-600 h-2 rounded-full" style={{ width: `${(stock.current / stock.capacity) * 100}%` }} /></div>
-              <div className="flex justify-between text-xs text-gray-500"><span>Capacity: {stock.capacity.toLocaleString()} L</span><span>Variance: {stock.variance}%</span></div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2"><FileText className="w-5 h-5" />Declare Stock Movement</button>
-    </div>
-  );
-
   // ── INCIDENTS ──
   const IncidentsView = () => (
     <div className="p-4 space-y-4">
@@ -439,7 +419,7 @@ const FuelIntegrityApp = () => {
         <InspectionReportModal />
         {selectedLocation ? (
           <div className="space-y-4">
-            <button onClick={() => setSelectedLocation(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />Back to Directory</button>
+            <button onClick={() => setSelectedLocation(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />{currentView === 'wsm' ? 'Back to Wet Stock Management' : 'Back to Directory'}</button>
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
                 <div className="flex items-start gap-3 mb-4">
@@ -494,7 +474,7 @@ const FuelIntegrityApp = () => {
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-800">Location Directory</h2>
+            <h2 className="text-2xl font-bold text-gray-800">{currentView === 'wsm' ? 'Wet Stock Management' : 'Location Directory'}</h2>
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
               <button onClick={() => setViewType('depots')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'depots' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Depots ({depots.length})</button>
               <button onClick={() => setViewType('stations')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'stations' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Stations ({gasStations.length})</button>
@@ -1315,7 +1295,7 @@ const FuelIntegrityApp = () => {
 
       {currentView === 'dashboard' && <DashboardView />}
       {currentView === 'sct' && <SCTView />}
-      {currentView === 'wsm' && <WSMView />}
+      {currentView === 'wsm' && <DirectoryView />}
       {currentView === 'incidents' && <IncidentsView />}
       {currentView === 'reports' && <ReportsView />}
       {currentView === 'directory' && <DirectoryView />}
