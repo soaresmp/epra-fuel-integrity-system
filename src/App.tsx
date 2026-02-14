@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const FuelIntegrityApp = () => {
@@ -598,6 +598,69 @@ const FuelIntegrityApp = () => {
     const totalWithdrawals = Math.round(stockData.reduce((a, b) => a + b.withdrawals * volumeMultiplier, 0));
     const totalNet = totalReceipts - totalWithdrawals;
 
+    // ── RISK & DISCREPANCY ANALYTICS ──
+    const locationZoneMap: Record<string, string> = {};
+    depots.forEach(d => { locationZoneMap[d.name] = d.location.split(',')[0].trim(); });
+    gasStations.forEach(s => { locationZoneMap[s.name] = s.location.split(',')[0].trim(); });
+
+    const riskProfiles = stockData.map(stock => {
+      const bal = stockBalances.find(b => b.location === stock.location);
+      const discrepancy = bal ? bal.discrepancy : 0;
+      const calculatedClosing = bal ? bal.calculatedClosing : 0;
+      const locationIncidents = incidents.filter(inc => inc.location === stock.location);
+      const openInc = locationIncidents.filter(inc => inc.status !== 'resolved');
+      const highInc = locationIncidents.filter(inc => inc.severity === 'high');
+      const varianceScore = Math.min(Math.round(stock.variance / 0.25 * 100), 100);
+      const discrepancyScore = Math.min(Math.round(Math.abs(discrepancy) / 500 * 100), 100);
+      const lossScore = Math.min(Math.round(stock.losses / 200 * 100), 100);
+      const incidentScore = Math.min(openInc.length * 30 + highInc.length * 20, 100);
+      const riskScore = Math.round(varianceScore * 0.3 + discrepancyScore * 0.25 + lossScore * 0.25 + incidentScore * 0.2);
+      const riskLevel = riskScore >= 75 ? 'Critical' : riskScore >= 50 ? 'High' : riskScore >= 25 ? 'Medium' : 'Low';
+      return { ...stock, discrepancy, calculatedClosing, riskScore, riskLevel, varianceScore, discrepancyScore, lossScore, incidentScore, incidentCount: locationIncidents.length, openIncidents: openInc.length, highSeverityIncidents: highInc.length, zone: locationZoneMap[stock.location] || 'Other' };
+    }).sort((a, b) => b.riskScore - a.riskScore);
+
+    const zoneRisks = (() => {
+      const zones: Record<string, { zone: string; locations: typeof riskProfiles; avgScore: number; totalLosses: number; locationCount: number }> = {};
+      riskProfiles.forEach(rp => {
+        const zone = rp.zone;
+        if (!zones[zone]) zones[zone] = { zone, locations: [], avgScore: 0, totalLosses: 0, locationCount: 0 };
+        zones[zone].locations.push(rp);
+        zones[zone].totalLosses += rp.losses;
+        zones[zone].locationCount++;
+      });
+      Object.values(zones).forEach(z => { z.avgScore = Math.round(z.locations.reduce((a, b) => a + b.riskScore, 0) / z.locations.length); });
+      return Object.values(zones).sort((a, b) => b.avgScore - a.avgScore);
+    })();
+
+    const operatorRisks = (() => {
+      const ops: Record<string, { operator: string; locations: typeof riskProfiles; avgScore: number; totalLosses: number; locationCount: number }> = {};
+      riskProfiles.forEach(rp => {
+        if (!ops[rp.company]) ops[rp.company] = { operator: rp.company, locations: [], avgScore: 0, totalLosses: 0, locationCount: 0 };
+        ops[rp.company].locations.push(rp);
+        ops[rp.company].totalLosses += rp.losses;
+        ops[rp.company].locationCount++;
+      });
+      Object.values(ops).forEach(o => { o.avgScore = Math.round(o.locations.reduce((a, b) => a + b.riskScore, 0) / o.locations.length); });
+      return Object.values(ops).sort((a, b) => b.avgScore - a.avgScore);
+    })();
+
+    const enforcementPlan = riskProfiles.map(rp => {
+      const actions: string[] = [];
+      if (rp.varianceScore >= 50) actions.push('Stock reconciliation audit');
+      if (rp.discrepancyScore >= 50) actions.push('Physical stock verification');
+      if (rp.lossScore >= 50) actions.push('Leakage investigation');
+      if (rp.incidentScore >= 50) actions.push('Incident follow-up');
+      if (rp.riskLevel === 'Critical') actions.push('Immediate site inspection');
+      if (rp.riskLevel === 'High') actions.push('Priority monitoring');
+      if (actions.length === 0) actions.push('Routine monitoring');
+      const priority = rp.riskLevel === 'Critical' ? 1 : rp.riskLevel === 'High' ? 2 : rp.riskLevel === 'Medium' ? 3 : 4;
+      return { ...rp, priority, actions };
+    }).sort((a, b) => a.priority - b.priority || b.riskScore - a.riskScore);
+
+    const riskChartData = riskProfiles.map(rp => ({ name: rp.location.length > 15 ? rp.location.slice(0, 15) + '...' : rp.location, score: rp.riskScore }));
+    const zoneChartData = zoneRisks.map(z => ({ name: z.zone, score: z.avgScore, locations: z.locationCount }));
+    const operatorChartData = operatorRisks.map(o => ({ name: o.operator.length > 15 ? o.operator.slice(0, 15) + '...' : o.operator, score: o.avgScore, locations: o.locationCount }));
+
     // ── Report list ──
     if (!activeReport) return (
       <div className="p-4 space-y-4">
@@ -609,6 +672,10 @@ const FuelIntegrityApp = () => {
             { id: 'custody-flow', icon: Truck, color: 'text-orange-600', title: 'Custody Flow Report', desc: 'Incoming & outgoing fuel flows at each custody change' },
             { id: 'balance', icon: Activity, color: 'text-purple-600', title: 'Stock Balance Calculator', desc: 'Automated balance calculation across the supply chain' },
             { id: 'volume', icon: BarChart3, color: 'text-red-600', title: 'Volume Levels Report', desc: 'Fuel volumes by location and time period' },
+            { id: 'discrepancy', icon: AlertTriangle, color: 'text-amber-600', title: 'Discrepancy & Leakage Report', desc: 'Highlighting discrepancies, leakages, or theft' },
+            { id: 'risk-profile', icon: Shield, color: 'text-indigo-600', title: 'Risk Profiling Report', desc: 'Risk profiling for each monitored location' },
+            { id: 'high-risk', icon: Target, color: 'text-rose-600', title: 'High-Risk Zones & Operators', desc: 'Identification of high-risk zones and operators' },
+            { id: 'enforcement', icon: Crosshair, color: 'text-teal-600', title: 'Enforcement Planning', desc: 'Targeted enforcement planning based on risk indicators' },
           ].map(report => (
             <button key={report.id} onClick={() => setActiveReport(report.id)} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left">
               <div className="flex items-center gap-3">
@@ -911,6 +978,246 @@ const FuelIntegrityApp = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── DISCREPANCY & LEAKAGE REPORT ── */}
+        {activeReport === 'discrepancy' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Discrepancy & Leakage Report</h3>
+              <p className="text-sm text-gray-500 mb-4">Highlighting discrepancies, leakages, or theft across monitored locations</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Losses</p><p className="text-lg font-bold text-red-600">{stockData.reduce((a, b) => a + b.losses, 0).toLocaleString()} L</p></div>
+                <div className="bg-amber-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Discrepancy</p><p className="text-lg font-bold text-amber-600">{Math.abs(stockBalances.reduce((a, b) => a + b.discrepancy, 0)).toLocaleString()} L</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Flagged Locations</p><p className="text-lg font-bold text-orange-600">{stockBalances.filter(b => Math.abs(b.discrepancy) > 50 || b.losses > 100).length}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Avg Loss Rate</p><p className="text-lg font-bold text-blue-600">{(stockData.reduce((a, b) => a + b.losses, 0) / stockData.reduce((a, b) => a + b.current, 0) * 100).toFixed(3)}%</p></div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Losses & Discrepancies by Location</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={stockData.map(s => ({ name: s.location.length > 15 ? s.location.slice(0, 15) + '...' : s.location, Losses: s.losses, Discrepancy: Math.abs(stockBalances.find(b => b.location === s.location)?.discrepancy || 0) }))} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend />
+                  <Bar dataKey="Losses" fill="#dc2626" />
+                  <Bar dataKey="Discrepancy" fill="#d97706" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {[...stockBalances].sort((a, b) => (Math.abs(b.discrepancy) + b.losses) - (Math.abs(a.discrepancy) + a.losses)).map((bal, i) => {
+              const flags: string[] = [];
+              if (bal.losses > 100) flags.push('Potential Leakage');
+              if (Math.abs(bal.discrepancy) > 50) flags.push('Unexplained Loss');
+              if (bal.variance >= 0.15) flags.push('High Variance');
+              const severity = flags.length >= 2 ? 'high' : flags.length === 1 ? 'medium' : 'low';
+              return (
+                <div key={i} className={`bg-white rounded-lg shadow p-4 ${severity === 'high' ? 'border-l-4 border-red-500' : severity === 'medium' ? 'border-l-4 border-yellow-500' : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {bal.location.includes('Depot') || bal.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
+                      <div><p className="font-semibold text-gray-800 text-sm">{bal.location}</p><p className="text-xs text-gray-500">{bal.company}</p></div>
+                    </div>
+                    {severity !== 'low' && <AlertTriangle className={`w-5 h-5 ${severity === 'high' ? 'text-red-500' : 'text-yellow-500'}`} />}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Reported Losses</p><p className={`font-bold text-sm ${bal.losses > 100 ? 'text-red-600' : 'text-gray-700'}`}>{bal.losses.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Discrepancy</p><p className={`font-bold text-sm ${Math.abs(bal.discrepancy) > 50 ? 'text-red-600' : Math.abs(bal.discrepancy) > 0 ? 'text-yellow-600' : 'text-green-600'}`}>{bal.discrepancy > 0 ? '+' : ''}{bal.discrepancy.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Variance</p><p className={`font-bold text-sm ${bal.variance >= 0.15 ? 'text-red-600' : 'text-green-600'}`}>{(bal.variance * 100).toFixed(1)}%</p></div>
+                  </div>
+                  {flags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {flags.map((flag, j) => (
+                        <span key={j} className={`px-2 py-1 rounded-full text-xs font-semibold ${flag === 'Potential Leakage' ? 'bg-red-100 text-red-800' : flag === 'Unexplained Loss' ? 'bg-amber-100 text-amber-800' : 'bg-orange-100 text-orange-800'}`}>{flag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── RISK PROFILING REPORT ── */}
+        {activeReport === 'risk-profile' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Risk Profiling Report</h3>
+              <p className="text-sm text-gray-500 mb-4">Composite risk assessment for each monitored location</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Critical Risk</p><p className="text-lg font-bold text-red-600">{riskProfiles.filter(r => r.riskLevel === 'Critical').length} locations</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">High Risk</p><p className="text-lg font-bold text-orange-600">{riskProfiles.filter(r => r.riskLevel === 'High').length} locations</p></div>
+                <div className="bg-indigo-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Avg Risk Score</p><p className="text-lg font-bold text-indigo-600">{Math.round(riskProfiles.reduce((a, b) => a + b.riskScore, 0) / riskProfiles.length)}/100</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Open Incidents</p><p className="text-lg font-bold text-yellow-600">{incidents.filter(inc => inc.status !== 'resolved').length}</p></div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Risk Scores by Location</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={riskChartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
+                  <Tooltip />
+                  <Bar dataKey="score" name="Risk Score" fill="#6366f1" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {riskProfiles.map((rp, i) => (
+              <div key={i} className={`bg-white rounded-lg shadow p-4 border-l-4 ${rp.riskLevel === 'Critical' ? 'border-red-500' : rp.riskLevel === 'High' ? 'border-orange-500' : rp.riskLevel === 'Medium' ? 'border-yellow-500' : 'border-green-500'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {rp.location.includes('Depot') || rp.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
+                    <div><p className="font-semibold text-gray-800 text-sm">{rp.location}</p><p className="text-xs text-gray-500">{rp.company}</p></div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${rp.riskLevel === 'Critical' ? 'bg-red-100 text-red-800' : rp.riskLevel === 'High' ? 'bg-orange-100 text-orange-800' : rp.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{rp.riskLevel}</span>
+                    <p className="text-lg font-bold text-gray-800 mt-1">{rp.riskScore}<span className="text-xs text-gray-500 font-normal">/100</span></p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div><div className="flex justify-between text-xs mb-1"><span className="text-gray-600">Variance Risk</span><span className="font-semibold">{rp.varianceScore}%</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: `${rp.varianceScore}%` }} /></div></div>
+                  <div><div className="flex justify-between text-xs mb-1"><span className="text-gray-600">Discrepancy Risk</span><span className="font-semibold">{rp.discrepancyScore}%</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-amber-500 h-2 rounded-full" style={{ width: `${rp.discrepancyScore}%` }} /></div></div>
+                  <div><div className="flex justify-between text-xs mb-1"><span className="text-gray-600">Loss Risk</span><span className="font-semibold">{rp.lossScore}%</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-red-500 h-2 rounded-full" style={{ width: `${rp.lossScore}%` }} /></div></div>
+                  <div><div className="flex justify-between text-xs mb-1"><span className="text-gray-600">Incident Risk</span><span className="font-semibold">{rp.incidentScore}%</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-purple-500 h-2 rounded-full" style={{ width: `${rp.incidentScore}%` }} /></div></div>
+                </div>
+                <div className="mt-3 pt-2 border-t grid grid-cols-3 gap-2 text-center text-xs">
+                  <div><p className="text-gray-500">Incidents</p><p className="font-bold text-gray-800">{rp.incidentCount}</p></div>
+                  <div><p className="text-gray-500">Open</p><p className="font-bold text-red-600">{rp.openIncidents}</p></div>
+                  <div><p className="text-gray-500">Zone</p><p className="font-bold text-gray-800">{rp.zone}</p></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── HIGH-RISK ZONES & OPERATORS ── */}
+        {activeReport === 'high-risk' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">High-Risk Zones & Operators</h3>
+              <p className="text-sm text-gray-500 mb-4">Identification of high-risk geographic zones and fuel operators</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Highest Risk Zone</p><p className="text-lg font-bold text-red-600">{zoneRisks[0]?.zone || 'N/A'}</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Highest Risk Operator</p><p className="text-lg font-bold text-orange-600 text-sm">{operatorRisks[0]?.operator.split(' ').slice(0, 2).join(' ') || 'N/A'}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Zones Monitored</p><p className="text-lg font-bold text-blue-600">{zoneRisks.length}</p></div>
+                <div className="bg-indigo-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Operators Monitored</p><p className="text-lg font-bold text-indigo-600">{operatorRisks.length}</p></div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Risk Score by Zone</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={zoneChartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
+                  <Tooltip />
+                  <Bar dataKey="score" name="Avg Risk Score" fill="#e11d48" />
+                </BarChart>
+              </ResponsiveContainer>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2 mt-4">Risk Score by Operator</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={operatorChartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
+                  <Tooltip />
+                  <Bar dataKey="score" name="Avg Risk Score" fill="#f59e0b" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Zone Risk Details</h4>
+              {zoneRisks.map((zone, i) => (
+                <div key={i} className="py-3 border-b last:border-b-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className={`w-5 h-5 ${zone.avgScore >= 50 ? 'text-red-500' : zone.avgScore >= 25 ? 'text-yellow-500' : 'text-green-500'}`} />
+                      <div><p className="font-semibold text-gray-800">{zone.zone}</p><p className="text-xs text-gray-500">{zone.locationCount} location{zone.locationCount !== 1 ? 's' : ''} monitored</p></div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${zone.avgScore >= 75 ? 'bg-red-100 text-red-800' : zone.avgScore >= 50 ? 'bg-orange-100 text-orange-800' : zone.avgScore >= 25 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{zone.avgScore}/100</span>
+                  </div>
+                  <div className="ml-7 space-y-1">
+                    {zone.locations.map((loc, j) => (
+                      <div key={j} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">{loc.location}</span>
+                        <span className={`font-semibold ${loc.riskScore >= 50 ? 'text-red-600' : loc.riskScore >= 25 ? 'text-yellow-600' : 'text-green-600'}`}>{loc.riskScore}/100</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Operator Risk Details</h4>
+              {operatorRisks.map((op, i) => (
+                <div key={i} className="py-3 border-b last:border-b-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Building2 className={`w-5 h-5 ${op.avgScore >= 50 ? 'text-red-500' : op.avgScore >= 25 ? 'text-yellow-500' : 'text-green-500'}`} />
+                      <div><p className="font-semibold text-gray-800">{op.operator}</p><p className="text-xs text-gray-500">{op.locationCount} location{op.locationCount !== 1 ? 's' : ''} | Total losses: {op.totalLosses.toLocaleString()} L</p></div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${op.avgScore >= 75 ? 'bg-red-100 text-red-800' : op.avgScore >= 50 ? 'bg-orange-100 text-orange-800' : op.avgScore >= 25 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{op.avgScore}/100</span>
+                  </div>
+                  <div className="ml-7 space-y-1">
+                    {op.locations.map((loc, j) => (
+                      <div key={j} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">{loc.location}</span>
+                        <span className={`font-semibold ${loc.riskScore >= 50 ? 'text-red-600' : loc.riskScore >= 25 ? 'text-yellow-600' : 'text-green-600'}`}>{loc.riskScore}/100</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── ENFORCEMENT PLANNING ── */}
+        {activeReport === 'enforcement' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Enforcement Planning</h3>
+              <p className="text-sm text-gray-500 mb-4">Targeted enforcement actions based on risk indicators</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Critical Priority</p><p className="text-lg font-bold text-red-600">{enforcementPlan.filter(e => e.priority === 1).length} locations</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">High Priority</p><p className="text-lg font-bold text-orange-600">{enforcementPlan.filter(e => e.priority === 2).length} locations</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Medium Priority</p><p className="text-lg font-bold text-yellow-600">{enforcementPlan.filter(e => e.priority === 3).length} locations</p></div>
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Routine</p><p className="text-lg font-bold text-green-600">{enforcementPlan.filter(e => e.priority === 4).length} locations</p></div>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg text-center">
+                <p className="text-xs text-gray-500 mb-1">Enforcement Strategy</p>
+                <p className="font-mono text-sm font-semibold text-gray-700">Risk Score → Priority Level → Targeted Actions</p>
+              </div>
+            </div>
+            {enforcementPlan.map((ep, i) => (
+              <div key={i} className={`bg-white rounded-lg shadow p-4 border-l-4 ${ep.priority === 1 ? 'border-red-500' : ep.priority === 2 ? 'border-orange-500' : ep.priority === 3 ? 'border-yellow-500' : 'border-green-500'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${ep.priority === 1 ? 'bg-red-500' : ep.priority === 2 ? 'bg-orange-500' : ep.priority === 3 ? 'bg-yellow-500' : 'bg-green-500'}`}>P{ep.priority}</div>
+                    <div><p className="font-semibold text-gray-800 text-sm">{ep.location}</p><p className="text-xs text-gray-500">{ep.company} · {ep.zone}</p></div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${ep.riskLevel === 'Critical' ? 'bg-red-100 text-red-800' : ep.riskLevel === 'High' ? 'bg-orange-100 text-orange-800' : ep.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{ep.riskLevel}</span>
+                    <p className="text-sm font-bold text-gray-700 mt-1">Score: {ep.riskScore}/100</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center mb-3">
+                  <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Variance</p><p className="font-bold text-xs">{(ep.variance * 100).toFixed(1)}%</p></div>
+                  <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Losses</p><p className="font-bold text-xs">{ep.losses.toLocaleString()} L</p></div>
+                  <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Discrepancy</p><p className="font-bold text-xs">{ep.discrepancy.toLocaleString()} L</p></div>
+                  <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Incidents</p><p className="font-bold text-xs">{ep.openIncidents} open</p></div>
+                </div>
+                <div className="border-t pt-2">
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Recommended Actions:</p>
+                  <div className="space-y-1">
+                    {ep.actions.map((action, j) => (
+                      <div key={j} className="flex items-center gap-2 text-sm">
+                        <Crosshair className="w-3 h-3 text-teal-600 flex-shrink-0" />
+                        <span className="text-gray-700">{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
