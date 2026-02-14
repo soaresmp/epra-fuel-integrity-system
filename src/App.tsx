@@ -51,14 +51,14 @@ const FuelIntegrityApp = () => {
   ]);
 
   const [stockData] = useState([
-    { location: 'Kipevu Oil Storage Facility', opening: 450000, current: 385000, capacity: 450000, variance: 0.08, receipts: 120000, withdrawals: 185000, losses: 150, company: 'Kenya Pipeline Company' },
-    { location: 'Nairobi West Depot', opening: 320000, current: 275000, capacity: 320000, variance: 0.11, receipts: 95000, withdrawals: 140000, losses: 120, company: 'Total Energies Kenya' },
-    { location: 'Eldoret Depot', opening: 180000, current: 152000, capacity: 180000, variance: 0.09, receipts: 42000, withdrawals: 70000, losses: 80, company: 'Vivo Energy Kenya (Shell)' },
-    { location: 'Kisumu Depot', opening: 150000, current: 128000, capacity: 150000, variance: 0.12, receipts: 38000, withdrawals: 60000, losses: 70, company: 'Rubis Energy Kenya' },
-    { location: 'Total Westlands', opening: 45000, current: 38000, capacity: 45000, variance: 0.15, receipts: 15000, withdrawals: 22000, losses: 30, company: 'Total Energies Kenya' },
-    { location: 'Shell Uhuru Highway', opening: 50000, current: 42000, capacity: 50000, variance: 0.13, receipts: 18000, withdrawals: 26000, losses: 25, company: 'Vivo Energy Kenya (Shell)' },
-    { location: 'Rubis Kilimani', opening: 40000, current: 35000, capacity: 40000, variance: 0.18, receipts: 12000, withdrawals: 17000, losses: 20, company: 'Rubis Energy Kenya' },
-    { location: 'Total Nyali', opening: 42000, current: 36000, capacity: 42000, variance: 0.10, receipts: 14000, withdrawals: 20000, losses: 15, company: 'Total Energies Kenya' }
+    { location: 'Kipevu Oil Storage Facility', opening: 450000, current: 385000, capacity: 450000, variance: 0.08, receipts: 120000, withdrawals: 185000, losses: 150, company: 'Kenya Pipeline Company', diesel: 185000, gasoline: 135000, kerosene: 65000 },
+    { location: 'Nairobi West Depot', opening: 320000, current: 275000, capacity: 320000, variance: 0.11, receipts: 95000, withdrawals: 140000, losses: 120, company: 'Total Energies Kenya', diesel: 130000, gasoline: 100000, kerosene: 45000 },
+    { location: 'Eldoret Depot', opening: 180000, current: 152000, capacity: 180000, variance: 0.09, receipts: 42000, withdrawals: 70000, losses: 80, company: 'Vivo Energy Kenya (Shell)', diesel: 72000, gasoline: 55000, kerosene: 25000 },
+    { location: 'Kisumu Depot', opening: 150000, current: 128000, capacity: 150000, variance: 0.12, receipts: 38000, withdrawals: 60000, losses: 70, company: 'Rubis Energy Kenya', diesel: 60000, gasoline: 46000, kerosene: 22000 },
+    { location: 'Total Westlands', opening: 45000, current: 38000, capacity: 45000, variance: 0.15, receipts: 15000, withdrawals: 22000, losses: 30, company: 'Total Energies Kenya', diesel: 18000, gasoline: 14000, kerosene: 6000 },
+    { location: 'Shell Uhuru Highway', opening: 50000, current: 42000, capacity: 50000, variance: 0.13, receipts: 18000, withdrawals: 26000, losses: 25, company: 'Vivo Energy Kenya (Shell)', diesel: 20000, gasoline: 15000, kerosene: 7000 },
+    { location: 'Rubis Kilimani', opening: 40000, current: 35000, capacity: 40000, variance: 0.18, receipts: 12000, withdrawals: 17000, losses: 20, company: 'Rubis Energy Kenya', diesel: 16000, gasoline: 13000, kerosene: 6000 },
+    { location: 'Total Nyali', opening: 42000, current: 36000, capacity: 42000, variance: 0.10, receipts: 14000, withdrawals: 20000, losses: 15, company: 'Total Energies Kenya', diesel: 17000, gasoline: 13000, kerosene: 6000 }
   ]);
 
   const [incidents] = useState([
@@ -164,7 +164,13 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Completed Today</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(t => t.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
         </div>
         <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Total Stock (L)</p><p className="text-2xl font-bold text-blue-600">{stockData.reduce((a, b) => a + b.current, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-blue-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Diesel Stock (L)</p><p className="text-2xl font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-blue-600" /></div>
+        </div>
+        <div className="bg-amber-50 p-4 rounded-lg border-l-4 border-amber-600">
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Gasoline Stock (L)</p><p className="text-2xl font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-amber-600" /></div>
+        </div>
+        <div className="bg-cyan-50 p-4 rounded-lg border-l-4 border-cyan-600">
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Kerosene Stock (L)</p><p className="text-2xl font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p></div><Fuel className="w-8 h-8 text-cyan-600" /></div>
         </div>
         <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-600">
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Incidents</p><p className="text-2xl font-bold text-red-600">{incidents.filter(i => i.status === 'open').length}</p></div><AlertCircle className="w-8 h-8 text-red-600" /></div>
@@ -176,7 +182,7 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Stations</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
         </div>
         <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Inspections This Month</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Monthly Inspections</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
         </div>
         <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-600">
           <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Market Compliance</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
@@ -259,9 +265,8 @@ const FuelIntegrityApp = () => {
             {/* Seal Numbers */}
             <div>
               <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
-                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Delivery Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberDelivery}</p></div>
               </div>
             </div>
 
