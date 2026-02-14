@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const FuelIntegrityApp = () => {
@@ -8,12 +9,18 @@ const FuelIntegrityApp = () => {
   const [currentView, setCurrentView] = useState('login');
   const [menuOpen, setMenuOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
+  const [scanType, setScanType] = useState<'loading' | 'delivery'>('delivery');
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const [deliveryRegistration, setDeliveryRegistration] = useState<any>(null);
+  const [deliveryConfirmed, setDeliveryConfirmed] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [showInspectionReport, setShowInspectionReport] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerRef = useRef<string>('qr-reader-' + Math.random().toString(36).substr(2, 9));
 
   const [depots] = useState([
     { id: 'DEP-001', name: 'Kipevu Oil Storage Facility', location: 'Mombasa, Coast', company: 'Kenya Pipeline Company', capacity: 450000, current: 385000, contact: 'John Mwangi', phone: '+254 722 123456', email: 'j.mwangi@kpc.co.ke', website: 'www.kpc.co.ke', coordinates: '-4.0435, 39.6682' },
@@ -92,11 +99,99 @@ const FuelIntegrityApp = () => {
     );
   })();
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
+    if (html5QrCodeRef.current) {
+      html5QrCodeRef.current.stop().then(() => {
+        html5QrCodeRef.current?.clear();
+        html5QrCodeRef.current = null;
+      }).catch(() => {
+        html5QrCodeRef.current = null;
+      });
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
     }
     setScannerActive(false);
+    setScannerError(null);
+  }, []);
+
+  const startCameraScanner = useCallback((type: 'loading' | 'delivery') => {
+    setScanType(type);
+    setScannerActive(true);
+    setScannerError(null);
+    setScannedData(null);
+    setDeliveryRegistration(null);
+    setDeliveryConfirmed(false);
+  }, []);
+
+  const handleQRCodeScanned = useCallback((decodedText: string) => {
+    stopCamera();
+    try {
+      const data = JSON.parse(decodedText);
+      if (scanType === 'delivery') {
+        // Match scanned QR to an existing loading transaction
+        const matchedTxn = transactions.find(t =>
+          t.id === data.transactionId || t.id === data.txnId
+        );
+        if (matchedTxn) {
+          setDeliveryRegistration({
+            transaction: matchedTxn,
+            scannedAt: new Date().toISOString(),
+            qrData: data,
+          });
+        } else {
+          setScannedData(decodedText);
+          setScannerError('No matching loading transaction found for this QR code.');
+        }
+      } else {
+        setScannedData(decodedText);
+      }
+    } catch {
+      // If not valid JSON, still show the raw data
+      setScannedData(decodedText);
+      if (scanType === 'delivery') {
+        setScannerError('Invalid QR code format. Please scan a valid loading transaction QR code.');
+      }
+    }
+  }, [scanType, transactions, stopCamera]);
+
+  // Initialize camera scanner when scannerActive becomes true
+  useEffect(() => {
+    if (!scannerActive) return;
+
+    const containerId = scannerContainerRef.current;
+    // Small delay to ensure the DOM element is rendered
+    const timeout = setTimeout(() => {
+      const containerEl = document.getElementById(containerId);
+      if (!containerEl) return;
+
+      const html5QrCode = new Html5Qrcode(containerId);
+      html5QrCodeRef.current = html5QrCode;
+
+      html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          handleQRCodeScanned(decodedText);
+        },
+        () => {} // ignore scan failures (no QR in frame)
+      ).catch((err: any) => {
+        console.error('Camera start error:', err);
+        setScannerError('Could not access camera. Please ensure camera permissions are granted.');
+      });
+    }, 300);
+
+    return () => {
+      clearTimeout(timeout);
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        html5QrCodeRef.current = null;
+      }
+    };
+  }, [scannerActive, handleQRCodeScanned]);
+
+  const handleConfirmDelivery = () => {
+    setDeliveryConfirmed(true);
   };
 
   const handleLogin = (role: string) => {
@@ -108,15 +203,6 @@ const FuelIntegrityApp = () => {
     setCurrentUser(null);
     setCurrentView('login');
     setMenuOpen(false);
-  };
-
-  const simulateQRScan = (type: 'loading' | 'delivery') => {
-    const mockData = {
-      loading: JSON.stringify({ txnId: 'TXN-003', from: 'Main Depot', to: 'Station C', vehicle: 'DEF-456', volume: 4000, type: 'Diesel', timestamp: new Date().toISOString() }),
-      delivery: JSON.stringify({ txnId: 'TXN-001', confirmed: true, timestamp: new Date().toISOString() })
-    };
-    setScannedData(mockData[type]);
-    setScannerActive(false);
   };
 
   // ── LOGIN ──
@@ -332,16 +418,150 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── DELIVERY REGISTRATION MODAL ──
+  const DeliveryRegistrationModal = () => {
+    if (!deliveryRegistration) return null;
+    const txn = deliveryRegistration.transaction;
+    const scanTime = new Date(deliveryRegistration.scannedAt);
+
+    if (deliveryConfirmed) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => { setDeliveryRegistration(null); setDeliveryConfirmed(false); }}>
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-6 rounded-t-lg text-center">
+              <CheckCircle className="w-16 h-16 mx-auto mb-3" />
+              <h3 className="font-bold text-xl">Delivery Registered</h3>
+              <p className="text-green-100 mt-1">Transaction {txn.id} confirmed</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-gray-500">Transaction ID</p><p className="font-semibold text-gray-800">{txn.id}</p></div>
+                  <div><p className="text-xs text-gray-500">Status</p><p className="font-semibold text-green-700">Delivered</p></div>
+                  <div><p className="text-xs text-gray-500">Volume</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                  <div><p className="text-xs text-gray-500">Product</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Delivered To</p><p className="font-semibold text-gray-800">{txn.to}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Confirmed At</p><p className="font-semibold text-gray-800">{scanTime.toLocaleString()}</p></div>
+                </div>
+              </div>
+              <button onClick={() => { setDeliveryRegistration(null); setDeliveryConfirmed(false); }} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Done</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setDeliveryRegistration(null)}>
+        <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+          <div className="sticky top-0 bg-gradient-to-r from-yellow-500 to-yellow-400 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">Register Delivery</h3>
+                <p className="text-yellow-100 text-sm">{txn.id} — Confirm Receipt</p>
+              </div>
+              <button onClick={() => setDeliveryRegistration(null)} className="text-white hover:text-yellow-200"><X className="w-6 h-6" /></button>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            {/* Scanned notification */}
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+              <Camera className="w-5 h-5 text-green-600" />
+              <span className="font-semibold text-sm text-green-800">QR Code Scanned — Loading Transaction Matched</span>
+            </div>
+
+            {/* Transfer Route */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 text-center">
+                  <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Source Depot</p>
+                  <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
+                </div>
+                <div className="text-green-600 font-bold text-lg">→</div>
+                <div className="flex-1 text-center">
+                  <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Destination</p>
+                  <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Consignment Details */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Consignment Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Vehicle</p><p className="font-semibold text-gray-800">{txn.vehicle}</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Driver</p><p className="font-semibold text-gray-800">{txn.driver}</p></div>
+              </div>
+            </div>
+
+            {/* Seal & Marker Verification */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal & Marker Verification</h4>
+              <div className="space-y-3">
+                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500">Loading Seal Number</p>
+                  <p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p>
+                </div>
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Batch</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Scan Metadata */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Scan Metadata</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Scanned At</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Expected Delivery</span><span className="font-semibold text-gray-800">{txn.expectedDelivery}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Received By</span><span className="font-semibold text-gray-800">{currentUser?.name}</span></div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleConfirmDelivery} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
+                <ClipboardCheck className="w-5 h-5" />Confirm Delivery
+              </button>
+              <button onClick={() => setDeliveryRegistration(null)} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── SCT ──
   const SCTView = () => (
     <div className="p-4 space-y-4">
       <SCTLoadingDetailModal />
+      <DeliveryRegistrationModal />
       <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => simulateQRScan('loading')} className="bg-green-600 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-green-700 transition"><Scan className="w-8 h-8" /><span className="font-semibold text-sm">Scan Loading QR</span></button>
-        <button onClick={() => simulateQRScan('delivery')} className="bg-yellow-500 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-yellow-600 transition"><CheckCircle className="w-8 h-8" /><span className="font-semibold text-sm">Scan Delivery QR</span></button>
+        <button onClick={() => startCameraScanner('loading')} className="bg-green-600 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-green-700 transition"><Scan className="w-8 h-8" /><span className="font-semibold text-sm">Scan Loading QR</span></button>
+        <button onClick={() => startCameraScanner('delivery')} className="bg-yellow-500 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-yellow-600 transition"><Camera className="w-8 h-8" /><span className="font-semibold text-sm">Scan Delivery QR</span></button>
       </div>
-      {scannedData && (
+      {scannerError && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-800 mb-1">Scan Error</p>
+              <p className="text-sm text-red-700">{scannerError}</p>
+              <button onClick={() => setScannerError(null)} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {scannedData && !scannerError && (
         <div className="bg-green-50 border-l-4 border-green-600 p-4 rounded">
           <div className="flex items-start gap-3">
             <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
@@ -1310,12 +1530,27 @@ const FuelIntegrityApp = () => {
       {scannerActive && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
           <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
-            <h3 className="font-semibold">Scan QR Code</h3>
-            <button onClick={stopCamera} className="text-white"><X className="w-6 h-6" /></button>
+            <div>
+              <h3 className="font-semibold">Scan {scanType === 'delivery' ? 'Delivery' : 'Loading'} QR Code</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Point camera at the consignment QR code</p>
+            </div>
+            <button onClick={stopCamera} className="text-white bg-gray-700 rounded-full p-2 hover:bg-gray-600"><X className="w-5 h-5" /></button>
           </div>
-          <div className="flex-1 relative">
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-            <div className="absolute inset-0 flex items-center justify-center"><div className="w-64 h-64 border-4 border-white rounded-lg"></div></div>
+          <div className="flex-1 relative overflow-hidden">
+            <div id={scannerContainerRef.current} className="w-full h-full" />
+            {scannerError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 p-6">
+                <div className="bg-white rounded-lg p-6 text-center max-w-sm">
+                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
+                  <p className="text-gray-800 font-semibold mb-2">Camera Access Required</p>
+                  <p className="text-sm text-gray-600 mb-4">{scannerError}</p>
+                  <button onClick={stopCamera} className="bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-700">Close</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-4 bg-gray-900 text-center">
+            <p className="text-sm text-gray-400">{scanType === 'delivery' ? 'Scan the loading transaction QR to register delivery' : 'Scan the QR code on the loading ticket'}</p>
           </div>
         </div>
       )}
