@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
@@ -67,6 +68,28 @@ const FuelIntegrityApp = () => {
     { id: 'INC-004', location: 'Total Westlands', type: 'Volume Discrepancy', severity: 'medium', timestamp: '2026-02-08 16:20', status: 'resolved', assignedTo: 'Peter Kariuki' },
     { id: 'INC-005', location: 'Nairobi West Depot', type: 'Sensor Offline', severity: 'low', timestamp: '2026-02-08 14:10', status: 'resolved', assignedTo: 'Sarah Kimani' }
   ]);
+
+  // Historical stock data – 7-day snapshots for each monitored location
+  const historicalStockData = (() => {
+    const days = [
+      { date: '2026-02-04', factor: 0.0 },
+      { date: '2026-02-05', factor: 0.15 },
+      { date: '2026-02-06', factor: 0.32 },
+      { date: '2026-02-07', factor: 0.45 },
+      { date: '2026-02-08', factor: 0.61 },
+      { date: '2026-02-09', factor: 0.78 },
+      { date: '2026-02-10', factor: 1.0 },
+    ];
+    return stockData.flatMap(stock =>
+      days.map(({ date, factor }) => ({
+        date,
+        location: stock.location,
+        stock: Math.round(stock.opening + (stock.current - stock.opening) * factor),
+        capacity: stock.capacity,
+        company: stock.company,
+      }))
+    );
+  })();
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -515,31 +538,381 @@ const FuelIntegrityApp = () => {
   // ── REPORTS ──
   const ReportsView = () => {
     const [activeReport, setActiveReport] = useState<string | null>(null);
-    const genStock = () => ({ title: 'Stock Movement Report', summary: { totalReceipts: stockData.reduce((a, b) => a + (b.receipts || 0), 0), totalWithdrawals: stockData.reduce((a, b) => a + (b.withdrawals || 0), 0), totalLosses: stockData.reduce((a, b) => a + (b.losses || 0), 0) }, details: stockData });
-    const genTxn = () => ({ title: 'Transaction History', summary: { total: transactions.length, completed: transactions.filter(t => t.status === 'completed').length, inTransit: transactions.filter(t => t.status === 'in-transit').length, totalVolume: transactions.reduce((a, b) => a + b.volume, 0) }, transactions });
+    const [selectedDate, setSelectedDate] = useState('2026-02-10');
+    const [reportLocation, setReportLocation] = useState('all');
+    const [timePeriod, setTimePeriod] = useState('daily');
 
+    // Custody flows derived from transactions
+    const custodyFlows = (() => {
+      const flows: Record<string, { location: string; incoming: number; outgoing: number; inCount: number; outCount: number; details: any[] }> = {};
+      transactions.forEach(txn => {
+        if (!flows[txn.from]) flows[txn.from] = { location: txn.from, incoming: 0, outgoing: 0, inCount: 0, outCount: 0, details: [] };
+        if (!flows[txn.to]) flows[txn.to] = { location: txn.to, incoming: 0, outgoing: 0, inCount: 0, outCount: 0, details: [] };
+        flows[txn.from].outgoing += txn.volume;
+        flows[txn.from].outCount++;
+        flows[txn.from].details.push({ ...txn, direction: 'outgoing' });
+        flows[txn.to].incoming += txn.volume;
+        flows[txn.to].inCount++;
+        flows[txn.to].details.push({ ...txn, direction: 'incoming' });
+      });
+      return Object.values(flows).sort((a, b) => (b.incoming + b.outgoing) - (a.incoming + a.outgoing));
+    })();
+
+    // Stock balance calculations
+    const stockBalances = stockData.map(stock => {
+      const calculatedClosing = stock.opening + stock.receipts - stock.withdrawals - stock.losses;
+      return { ...stock, calculatedClosing, discrepancy: stock.current - calculatedClosing };
+    });
+
+    // Historical data for the selected date
+    const historicalForDate = historicalStockData.filter(h => h.date === selectedDate);
+
+    // Chart data – group by date for line chart
+    const chartLocations = reportLocation === 'all'
+      ? Array.from(new Set(historicalStockData.map(h => h.location))).slice(0, 4)
+      : [reportLocation];
+    const chartData = Array.from(new Set(historicalStockData.map(h => h.date))).map(date => {
+      const entry: any = { date: date.slice(5) };
+      chartLocations.forEach(loc => {
+        const record = historicalStockData.find(h => h.date === date && h.location === loc);
+        if (record) entry[loc] = record.stock;
+      });
+      return entry;
+    });
+
+    // Volume chart data
+    const volumeChartData = stockData.map(s => ({
+      name: s.location.length > 15 ? s.location.slice(0, 15) + '...' : s.location,
+      fullName: s.location,
+      current: s.current,
+      capacity: s.capacity,
+      receipts: s.receipts,
+      withdrawals: s.withdrawals,
+    }));
+
+    const COLORS = ['#16a34a', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#be185d', '#65a30d'];
+
+    // Volume multiplier for time period
+    const volumeMultiplier = timePeriod === 'daily' ? 1 : (timePeriod === 'weekly' ? 7 : 30) / 7;
+    const totalReceipts = Math.round(stockData.reduce((a, b) => a + b.receipts * volumeMultiplier, 0));
+    const totalWithdrawals = Math.round(stockData.reduce((a, b) => a + b.withdrawals * volumeMultiplier, 0));
+    const totalNet = totalReceipts - totalWithdrawals;
+
+    // ── Report list ──
     if (!activeReport) return (
       <div className="p-4 space-y-4">
         <h2 className="text-2xl font-bold text-gray-800">Reports & Analytics</h2>
-        <div className="grid grid-cols-1 gap-4">
-          <button onClick={() => setActiveReport('stock')} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left"><div className="flex items-center gap-3"><BarChart3 className="w-8 h-8 text-blue-600" /><div><p className="font-semibold text-gray-800">Stock Movement Report</p><p className="text-sm text-gray-600">Daily reconciliation summary</p></div></div></button>
-          <button onClick={() => setActiveReport('transactions')} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left"><div className="flex items-center gap-3"><Truck className="w-8 h-8 text-green-600" /><div><p className="font-semibold text-gray-800">Transaction History</p><p className="text-sm text-gray-600">SCT transfer records</p></div></div></button>
+        <div className="grid grid-cols-1 gap-3">
+          {[
+            { id: 'current-stock', icon: Fuel, color: 'text-blue-600', title: 'Current Stock Levels', desc: 'Live fuel stock at each monitored location' },
+            { id: 'historical', icon: TrendingUp, color: 'text-green-600', title: 'Historical Stock Levels', desc: 'Stock levels at any given date with trends' },
+            { id: 'custody-flow', icon: Truck, color: 'text-orange-600', title: 'Custody Flow Report', desc: 'Incoming & outgoing fuel flows at each custody change' },
+            { id: 'balance', icon: Activity, color: 'text-purple-600', title: 'Stock Balance Calculator', desc: 'Automated balance calculation across the supply chain' },
+            { id: 'volume', icon: BarChart3, color: 'text-red-600', title: 'Volume Levels Report', desc: 'Fuel volumes by location and time period' },
+          ].map(report => (
+            <button key={report.id} onClick={() => setActiveReport(report.id)} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left">
+              <div className="flex items-center gap-3">
+                <report.icon className={`w-8 h-8 ${report.color}`} />
+                <div><p className="font-semibold text-gray-800">{report.title}</p><p className="text-sm text-gray-600">{report.desc}</p></div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     );
 
-    const data = activeReport === 'stock' ? genStock() : genTxn();
     return (
       <div className="p-4 space-y-4">
         <button onClick={() => setActiveReport(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />Back to Reports</button>
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-xl font-bold mb-4">{data.title}</h3>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {Object.entries(data.summary).map(([k, v]) => (
-              <div key={k} className="bg-blue-50 p-3 rounded"><p className="text-xs text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}</p><p className="text-lg font-bold text-blue-600">{typeof v === 'number' ? v.toLocaleString() : v}</p></div>
+
+        {/* ── CURRENT STOCK LEVELS ── */}
+        {activeReport === 'current-stock' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Current Stock Levels</h3>
+              <p className="text-sm text-gray-500 mb-4">Live fuel stock at each monitored location</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Current Stock</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.current, 0).toLocaleString()} L</p></div>
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Capacity</p><p className="text-lg font-bold text-green-600">{stockData.reduce((a, b) => a + b.capacity, 0).toLocaleString()} L</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Avg Utilization</p><p className="text-lg font-bold text-yellow-600">{(stockData.reduce((a, b) => a + (b.current / b.capacity), 0) / stockData.length * 100).toFixed(1)}%</p></div>
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Locations Monitored</p><p className="text-lg font-bold text-red-600">{stockData.length}</p></div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Stock vs Capacity</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={volumeChartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend />
+                  <Bar dataKey="current" fill="#2563eb" name="Current Stock" />
+                  <Bar dataKey="capacity" fill="#d1d5db" name="Capacity" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {stockData.map((stock, i) => {
+              const utilization = (stock.current / stock.capacity) * 100;
+              return (
+                <div key={i} className="bg-white rounded-lg shadow p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {stock.location.includes('Depot') || stock.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
+                      <div><p className="font-semibold text-gray-800 text-sm">{stock.location}</p><p className="text-xs text-gray-500">{stock.company}</p></div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${utilization > 80 ? 'bg-green-100 text-green-800' : utilization > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{utilization.toFixed(1)}%</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center mb-2">
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Current</p><p className="font-bold text-sm text-blue-600">{stock.current.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Capacity</p><p className="font-bold text-sm text-gray-700">{stock.capacity.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-2 rounded"><p className="text-xs text-gray-500">Variance</p><p className={`font-bold text-sm ${stock.variance >= 0.15 ? 'text-red-600' : 'text-green-600'}`}>{stock.variance}%</p></div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2"><div className={`h-2 rounded-full ${utilization > 80 ? 'bg-green-500' : utilization > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${utilization}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── HISTORICAL STOCK LEVELS ── */}
+        {activeReport === 'historical' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Historical Stock Levels</h3>
+              <p className="text-sm text-gray-500 mb-4">View stock levels at any given date</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Select Date</label>
+                  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} min="2026-02-04" max="2026-02-10" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Location</label>
+                  <select value={reportLocation} onChange={e => setReportLocation(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="all">All Locations</option>
+                    {stockData.map(s => <option key={s.location} value={s.location}>{s.location}</option>)}
+                  </select>
+                </div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Stock Level Trends (7-Day)</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {chartLocations.map((loc, i) => (
+                    <Line key={loc} type="monotone" dataKey={loc} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} name={loc.length > 20 ? loc.slice(0, 20) + '...' : loc} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Stock Levels on {selectedDate}</h4>
+              {historicalForDate
+                .filter(h => reportLocation === 'all' || h.location === reportLocation)
+                .map((h, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center gap-2">
+                    {h.location.includes('Depot') || h.location.includes('Facility') ? <Building2 className="w-4 h-4 text-blue-600" /> : <Store className="w-4 h-4 text-green-600" />}
+                    <div><p className="font-semibold text-sm text-gray-800">{h.location}</p><p className="text-xs text-gray-500">{h.company}</p></div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm text-blue-600">{h.stock.toLocaleString()} L</p>
+                    <p className="text-xs text-gray-500">{((h.stock / h.capacity) * 100).toFixed(1)}% full</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── CUSTODY FLOW REPORT ── */}
+        {activeReport === 'custody-flow' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Custody Flow Report</h3>
+              <p className="text-sm text-gray-500 mb-4">Incoming and outgoing fuel flows at each custody change</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Dispatched</p><p className="text-lg font-bold text-green-600">{custodyFlows.reduce((a, b) => a + b.outgoing, 0).toLocaleString()} L</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Received</p><p className="text-lg font-bold text-blue-600">{custodyFlows.reduce((a, b) => a + b.incoming, 0).toLocaleString()} L</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Transfers</p><p className="text-lg font-bold text-yellow-600">{transactions.length}</p></div>
+              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={custodyFlows.slice(0, 6).map(f => ({ name: f.location.length > 12 ? f.location.slice(0, 12) + '...' : f.location, Incoming: f.incoming, Outgoing: f.outgoing }))} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend />
+                  <Bar dataKey="Incoming" fill="#2563eb" />
+                  <Bar dataKey="Outgoing" fill="#16a34a" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {custodyFlows.map((flow, i) => (
+              <div key={i} className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  {flow.location.includes('Depot') || flow.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
+                  <h4 className="font-semibold text-gray-800">{flow.location}</h4>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-blue-50 p-2 rounded text-center">
+                    <ArrowDownCircle className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">Incoming</p>
+                    <p className="font-bold text-sm text-blue-600">{flow.incoming.toLocaleString()} L</p>
+                    <p className="text-xs text-gray-400">{flow.inCount} transfer{flow.inCount !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="bg-green-50 p-2 rounded text-center">
+                    <ArrowUpCircle className="w-4 h-4 text-green-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">Outgoing</p>
+                    <p className="font-bold text-sm text-green-600">{flow.outgoing.toLocaleString()} L</p>
+                    <p className="text-xs text-gray-400">{flow.outCount} transfer{flow.outCount !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className={`p-2 rounded text-center ${(flow.incoming - flow.outgoing) >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <Activity className="w-4 h-4 text-gray-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">Net Flow</p>
+                    <p className={`font-bold text-sm ${(flow.incoming - flow.outgoing) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{(flow.incoming - flow.outgoing) >= 0 ? '+' : ''}{(flow.incoming - flow.outgoing).toLocaleString()} L</p>
+                  </div>
+                </div>
+                <div className="border-t pt-2">
+                  {flow.details.map((txn: any, j: number) => (
+                    <div key={j} className="flex items-center justify-between py-2 text-sm border-b last:border-b-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${txn.direction === 'incoming' ? 'bg-blue-500' : 'bg-green-500'}`} />
+                        <div><p className="text-gray-700">{txn.id} - {txn.type}</p><p className="text-xs text-gray-500">{txn.date} {txn.time}</p></div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-semibold ${txn.direction === 'incoming' ? 'text-blue-600' : 'text-green-600'}`}>{txn.direction === 'incoming' ? '+' : '-'}{txn.volume.toLocaleString()} L</p>
+                        <p className="text-xs text-gray-500">{txn.direction === 'incoming' ? `From: ${txn.from}` : `To: ${txn.to}`}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        )}
+
+        {/* ── STOCK BALANCE CALCULATOR ── */}
+        {activeReport === 'balance' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Stock Balance Calculator</h3>
+              <p className="text-sm text-gray-500 mb-4">Automated calculation of stock balances across the supply chain</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Opening Stock</p><p className="text-lg font-bold text-blue-600">{stockBalances.reduce((a, b) => a + b.opening, 0).toLocaleString()} L</p></div>
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Receipts</p><p className="text-lg font-bold text-green-600">+{stockBalances.reduce((a, b) => a + b.receipts, 0).toLocaleString()} L</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Withdrawals</p><p className="text-lg font-bold text-yellow-600">-{stockBalances.reduce((a, b) => a + b.withdrawals, 0).toLocaleString()} L</p></div>
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Losses</p><p className="text-lg font-bold text-red-600">-{stockBalances.reduce((a, b) => a + b.losses, 0).toLocaleString()} L</p></div>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg text-center">
+                <p className="text-xs text-gray-500 mb-1">Balance Formula</p>
+                <p className="font-mono text-sm font-semibold text-gray-700">Closing = Opening + Receipts - Withdrawals - Losses</p>
+              </div>
+            </div>
+            {stockBalances.map((bal, i) => (
+              <div key={i} className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {bal.location.includes('Depot') || bal.location.includes('Facility') ? <Building2 className="w-5 h-5 text-blue-600" /> : <Store className="w-5 h-5 text-green-600" />}
+                    <div><p className="font-semibold text-gray-800 text-sm">{bal.location}</p><p className="text-xs text-gray-500">{bal.company}</p></div>
+                  </div>
+                  {Math.abs(bal.discrepancy) > 0 ? (
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${Math.abs(bal.discrepancy) <= 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{bal.discrepancy > 0 ? '+' : ''}{bal.discrepancy.toLocaleString()} L</span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Balanced</span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm py-1 border-b"><span className="text-gray-600">Opening Stock</span><span className="font-semibold">{bal.opening.toLocaleString()} L</span></div>
+                  <div className="flex justify-between text-sm py-1 border-b"><span className="text-green-600">+ Receipts</span><span className="font-semibold text-green-600">+{bal.receipts.toLocaleString()} L</span></div>
+                  <div className="flex justify-between text-sm py-1 border-b"><span className="text-yellow-600">- Withdrawals</span><span className="font-semibold text-yellow-600">-{bal.withdrawals.toLocaleString()} L</span></div>
+                  <div className="flex justify-between text-sm py-1 border-b"><span className="text-red-600">- Losses</span><span className="font-semibold text-red-600">-{bal.losses.toLocaleString()} L</span></div>
+                  <div className="flex justify-between text-sm py-1 border-b bg-blue-50 px-2 rounded"><span className="font-semibold text-blue-800">= Calculated Closing</span><span className="font-bold text-blue-600">{bal.calculatedClosing.toLocaleString()} L</span></div>
+                  <div className="flex justify-between text-sm py-1"><span className="text-gray-600">Actual Current Stock</span><span className="font-semibold">{bal.current.toLocaleString()} L</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── VOLUME LEVELS REPORT ── */}
+        {activeReport === 'volume' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-1">Volume Levels Report</h3>
+              <p className="text-sm text-gray-500 mb-4">Fuel volumes by location and time period</p>
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-lg mb-4">
+                {['daily', 'weekly', 'monthly'].map(p => (
+                  <button key={p} onClick={() => setTimePeriod(p)} className={`flex-1 py-2 rounded-md font-semibold text-sm transition capitalize ${timePeriod === p ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{p}</button>
+                ))}
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Receipts vs Withdrawals by Location</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={volumeChartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend />
+                  <Bar dataKey="receipts" fill="#16a34a" name="Receipts" />
+                  <Bar dataKey="withdrawals" fill="#dc2626" name="Withdrawals" />
+                </BarChart>
+              </ResponsiveContainer>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2 mt-4">Volume Trends Over Time</h4>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} L`} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {chartLocations.map((loc, i) => (
+                    <Line key={loc} type="monotone" dataKey={loc} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} name={loc.length > 20 ? loc.slice(0, 20) + '...' : loc} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Volume Details ({timePeriod})</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left p-2 font-semibold text-gray-700">Location</th>
+                      <th className="text-right p-2 font-semibold text-gray-700">Receipts</th>
+                      <th className="text-right p-2 font-semibold text-gray-700">Withdrawals</th>
+                      <th className="text-right p-2 font-semibold text-gray-700">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockData.map((stock, i) => {
+                      const r = Math.round(stock.receipts * volumeMultiplier);
+                      const w = Math.round(stock.withdrawals * volumeMultiplier);
+                      const n = r - w;
+                      return (
+                        <tr key={i} className="border-b last:border-b-0">
+                          <td className="p-2"><p className="font-medium text-gray-800">{stock.location}</p><p className="text-xs text-gray-500">{stock.company}</p></td>
+                          <td className="p-2 text-right text-green-600 font-semibold">{r.toLocaleString()} L</td>
+                          <td className="p-2 text-right text-red-600 font-semibold">{w.toLocaleString()} L</td>
+                          <td className={`p-2 text-right font-bold ${n >= 0 ? 'text-green-600' : 'text-red-600'}`}>{n >= 0 ? '+' : ''}{n.toLocaleString()} L</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 font-bold">
+                      <td className="p-2">Total</td>
+                      <td className="p-2 text-right text-green-600">{totalReceipts.toLocaleString()} L</td>
+                      <td className="p-2 text-right text-red-600">{totalWithdrawals.toLocaleString()} L</td>
+                      <td className={`p-2 text-right ${totalNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalNet >= 0 ? '+' : ''}{totalNet.toLocaleString()} L</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
