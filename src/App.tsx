@@ -28,6 +28,12 @@ const FuelIntegrityApp = () => {
     footerText: 'Fuel Integrity',
     subFooterText: 'Management System',
   });
+  const [profilePermissions, setProfilePermissions] = useState<Record<string, Record<string, boolean>>>({
+    admin: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+    operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+    station_operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+    inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+  });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -325,8 +331,8 @@ const FuelIntegrityApp = () => {
           <button disabled className="w-full bg-gray-400 text-white py-3 rounded-lg font-semibold cursor-not-allowed opacity-60">Login as Inspector</button>
         </div>
         <div className="mt-6 pt-6 border-t text-center">
-          <p className="text-xs text-gray-500">Republic of Kenya</p>
-          <p className="text-xs text-gray-500 mt-1">www.epra.go.ke</p>
+          <p className="text-xs text-gray-500">{appSettings.footerText}</p>
+          <p className="text-xs text-gray-500 mt-1">{appSettings.subFooterText}</p>
         </div>
       </div>
     </div>
@@ -1746,6 +1752,65 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── PROFILES VIEW ──
+  const ProfilesView = () => {
+    const profiles = [
+      { key: 'admin', label: 'Administrator' },
+      { key: 'operator', label: 'Depto Operator' },
+      { key: 'station_operator', label: 'Station Operator' },
+      { key: 'inspector', label: 'Field Inspector' },
+    ];
+    const pages = [
+      { key: 'dashboard', label: 'Dashboard' },
+      { key: 'sct', label: 'SCT' },
+      { key: 'wsm', label: 'WSM' },
+      { key: 'incidents', label: 'Alerts' },
+      { key: 'reports', label: 'Reports' },
+    ];
+
+    const togglePermission = (profileKey: string, pageKey: string) => {
+      setProfilePermissions(prev => ({
+        ...prev,
+        [profileKey]: {
+          ...prev[profileKey],
+          [pageKey]: !prev[profileKey][pageKey],
+        },
+      }));
+    };
+
+    return (
+      <div className="p-4 space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => setCurrentView('dashboard')} className="text-green-700">
+            <X className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-bold text-gray-800">Profile Access Management</h2>
+        </div>
+        {profiles.map(profile => (
+          <div key={profile.key} className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-5 h-5 text-green-600" />
+              <h3 className="font-semibold text-gray-800">{profile.label}</h3>
+            </div>
+            <div className="space-y-2">
+              {pages.map(page => (
+                <div key={page.key} className="flex items-center justify-between py-2 px-3 rounded bg-gray-50">
+                  <span className="text-sm text-gray-700">{page.label}</span>
+                  <button
+                    onClick={() => togglePermission(profile.key, page.key)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${profilePermissions[profile.key][page.key] ? 'bg-green-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${profilePermissions[profile.key][page.key] ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // ── SETTINGS VIEW ──
   const SettingsView = () => {
     const [localSettings, setLocalSettings] = useState({ ...appSettings });
@@ -1824,16 +1889,21 @@ const FuelIntegrityApp = () => {
     </div>
   );
 
-  const BottomNav = () => (
+  const BottomNav = () => {
+    const userRole = currentUser?.role || '';
+    const rolePerms = profilePermissions[userRole] || {};
+    const allNavItems = [
+      { view: 'dashboard', icon: Home, label: 'Home' },
+      { view: 'sct', icon: Truck, label: 'SCT' },
+      { view: 'wsm', icon: Package, label: 'WSM' },
+      { view: 'incidents', icon: AlertCircle, label: 'Alerts' },
+      { view: 'reports', icon: BarChart3, label: 'Reports' },
+    ];
+    const visibleItems = allNavItems.filter(item => rolePerms[item.view] !== false);
+    return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
       <div className="flex justify-around p-2">
-        {[
-          { view: 'dashboard', icon: Home, label: 'Home' },
-          { view: 'sct', icon: Truck, label: 'SCT' },
-          { view: 'wsm', icon: Package, label: 'WSM' },
-          { view: 'incidents', icon: AlertCircle, label: 'Alerts' },
-          { view: 'reports', icon: BarChart3, label: 'Reports' },
-        ].map(({ view, icon: Icon, label }) => (
+        {visibleItems.map(({ view, icon: Icon, label }) => (
           <button key={view} onClick={() => setCurrentView(view)} className={`flex flex-col items-center p-2 flex-1 ${currentView === view ? 'text-green-600' : 'text-gray-600'}`}>
             <Icon className="w-6 h-6" /><span className="text-xs mt-1">{label}</span>
           </button>
@@ -1841,6 +1911,7 @@ const FuelIntegrityApp = () => {
       </div>
     </div>
   );
+  };
 
   const SideMenu = () => (
     <div className={`fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuOpen(false)}>
@@ -1849,14 +1920,13 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Main Menu</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
-          <button className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
+          <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
           <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
           <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>Logout</span></button>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
           <p className="text-xs text-gray-600 text-center">{appSettings.footerText}</p>
           <p className="text-xs text-gray-600 text-center">{appSettings.subFooterText}</p>
-          <p className="text-xs text-green-600 font-semibold text-center mt-1">Republic of Kenya</p>
         </div>
       </div>
     </div>
@@ -1864,6 +1934,11 @@ const FuelIntegrityApp = () => {
 
   // ── LOGIN GUARD ──
   if (!currentUser) return <LoginView />;
+
+  // ── ACCESS HELPER ──
+  const userRole = currentUser.role;
+  const rolePerms = profilePermissions[userRole] || {};
+  const hasAccess = (view: string) => rolePerms[view] !== false;
 
   // ── MAIN RENDER ──
   return (
@@ -1899,13 +1974,14 @@ const FuelIntegrityApp = () => {
         </div>
       )}
 
-      {currentView === 'dashboard' && <DashboardView />}
-      {currentView === 'sct' && <SCTView />}
-      {currentView === 'wsm' && <DirectoryView />}
-      {currentView === 'incidents' && <IncidentsView />}
-      {currentView === 'reports' && <ReportsView />}
+      {currentView === 'dashboard' && hasAccess('dashboard') && <DashboardView />}
+      {currentView === 'sct' && hasAccess('sct') && <SCTView />}
+      {currentView === 'wsm' && hasAccess('wsm') && <DirectoryView />}
+      {currentView === 'incidents' && hasAccess('incidents') && <IncidentsView />}
+      {currentView === 'reports' && hasAccess('reports') && <ReportsView />}
       {currentView === 'directory' && <DirectoryView />}
       {currentView === 'settings' && <SettingsView />}
+      {currentView === 'profiles' && <ProfilesView />}
 
       <BottomNav />
     </div>
