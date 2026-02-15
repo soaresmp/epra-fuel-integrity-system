@@ -369,7 +369,7 @@ const FuelIntegrityApp = () => {
               <p className="text-xs text-gray-500">{appSettings.footerText}</p>
               <p className="text-xs text-gray-500 mt-1">{appSettings.subFooterText}</p>
             </div>
-            <p className="text-xs text-gray-400">v0.1.0</p>
+            <p className="text-xs text-gray-400">{process.env.REACT_APP_GIT_BRANCH || 'local'}</p>
           </div>
         </div>
       </div>
