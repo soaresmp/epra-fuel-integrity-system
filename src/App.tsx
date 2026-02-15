@@ -22,17 +22,29 @@ const FuelIntegrityApp = () => {
   const [transitLoadRegistration, setTransitLoadRegistration] = useState<any>(null);
   const [transitLoadConfirmed, setTransitLoadConfirmed] = useState(false);
   const [licensePlateError, setLicensePlateError] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState({
-    appTitle: 'Fuel Integrity',
-    appSubtitle: 'Management System',
-    footerText: 'Fuel Integrity',
-    subFooterText: 'Management System',
+  const [appSettings, setAppSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('epra_appSettings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      appTitle: 'Fuel Integrity',
+      appSubtitle: 'Management System',
+      footerText: 'Fuel Integrity',
+      subFooterText: 'Management System',
+    };
   });
-  const [profilePermissions, setProfilePermissions] = useState<Record<string, Record<string, boolean>>>({
-    admin: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-    operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-    station_operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-    inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+  const [profilePermissions, setProfilePermissions] = useState<Record<string, Record<string, boolean>>>(() => {
+    try {
+      const saved = localStorage.getItem('epra_profilePermissions');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      admin: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+      operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+      station_operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+      inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+    };
   });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -227,6 +239,16 @@ const FuelIntegrityApp = () => {
     }
   }, [scanType, transactions, stopCamera, generateConsignment]);
 
+  // Persist appSettings to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('epra_appSettings', JSON.stringify(appSettings)); } catch {}
+  }, [appSettings]);
+
+  // Persist profilePermissions to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('epra_profilePermissions', JSON.stringify(profilePermissions)); } catch {}
+  }, [profilePermissions]);
+
   // Initialize camera scanner when scannerActive becomes true
   useEffect(() => {
     if (!scannerActive) return;
@@ -264,6 +286,11 @@ const FuelIntegrityApp = () => {
 
   const handleConfirmDelivery = () => {
     setDeliveryConfirmed(true);
+  };
+
+  const handleConfirmDeliveryFromDetail = (txnId: string) => {
+    setTransactions(prev => prev.map(t => t.id === txnId ? { ...t, status: 'completed' } : t));
+    setSelectedTransaction(null);
   };
 
   const handleLicensePlateLookup = () => {
@@ -445,6 +472,17 @@ const FuelIntegrityApp = () => {
               {txn.status === 'completed' ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-yellow-600" />}
               <span className={`font-semibold text-sm ${txn.status === 'completed' ? 'text-green-800' : 'text-yellow-800'}`}>{txn.status === 'completed' ? 'Transfer Completed' : 'In Transit'}</span>
             </div>
+
+            {/* Confirm Delivery Button for in-transit consignments */}
+            {txn.status === 'in-transit' && (
+              <button
+                onClick={() => handleConfirmDeliveryFromDetail(txn.id)}
+                className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"
+              >
+                <ClipboardCheck className="w-5 h-5" />
+                Confirm Delivery
+              </button>
+            )}
 
             {/* Transfer Route */}
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -655,13 +693,13 @@ const FuelIntegrityApp = () => {
           <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-6 rounded-t-lg text-center">
               <CheckCircle className="w-16 h-16 mx-auto mb-3" />
-              <h3 className="font-bold text-xl">Departure Confirmed</h3>
+              <h3 className="font-bold text-xl">In Transit</h3>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><p className="text-xs text-gray-500">Transaction ID</p><p className="font-semibold text-gray-800">{txn.id}</p></div>
-                  <div><p className="text-xs text-gray-500">Status</p><p className="font-semibold text-green-700">Departure Confirmed</p></div>
+                  <div><p className="text-xs text-gray-500">Status</p><p className="font-semibold text-green-700">In Transit</p></div>
                   <div><p className="text-xs text-gray-500">Volume</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
                   <div><p className="text-xs text-gray-500">Product</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
                   <div><p className="text-xs text-gray-500">Vehicle</p><p className="font-semibold text-gray-800">{txn.vehicle}</p></div>
