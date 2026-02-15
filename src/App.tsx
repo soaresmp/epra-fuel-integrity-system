@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, ChevronRight, Printer, Download } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
 
@@ -448,22 +448,24 @@ const FuelIntegrityApp = () => {
               </div>
               <button onClick={() => setSelectedTransaction(null)} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
-            <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
-              <div className="bg-white p-2 rounded-lg flex-shrink-0">
-                <QRCodeSVG
-                  value={txn.id}
-                  size={120}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="H"
-                  includeMargin={true}
-                />
+            {txn.status === 'in-transit' && (
+              <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
+                <div className="bg-white p-2 rounded-lg flex-shrink-0">
+                  <QRCodeSVG
+                    value={txn.id}
+                    size={120}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <div className="text-xs text-gray-600">
+                  <p className="font-semibold text-gray-800 text-sm mb-1">Consignment QR</p>
+                  <p>Scan to receive the consignment</p>
+                </div>
               </div>
-              <div className="text-xs text-gray-600">
-                <p className="font-semibold text-gray-800 text-sm mb-1">Consignment QR</p>
-                <p>Scan to receive the consignment</p>
-              </div>
-            </div>
+            )}
           </div>
           <div className="p-4 space-y-4">
             {/* Status Banner */}
@@ -538,7 +540,6 @@ const FuelIntegrityApp = () => {
               <>
                 {/* Transport Details */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Vehicle & Driver</h4>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
@@ -739,22 +740,6 @@ const FuelIntegrityApp = () => {
               </div>
               <button onClick={handleCloseTransitLoad} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
-            <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
-              <div className="bg-white p-2 rounded-lg flex-shrink-0">
-                <QRCodeSVG
-                  value={txn.id}
-                  size={120}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="H"
-                  includeMargin={true}
-                />
-              </div>
-              <div className="text-xs text-gray-600">
-                <p className="font-semibold text-gray-800 text-sm mb-1">Consignment QR</p>
-                <p>Scan to receive the consignment</p>
-              </div>
-            </div>
           </div>
           <div className="p-4 space-y-4">
             {/* Match notification */}
@@ -768,7 +753,6 @@ const FuelIntegrityApp = () => {
               <button onClick={handleConfirmTransitLoad} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
                 <ClipboardCheck className="w-5 h-5" />Confirm Departure
               </button>
-              <button onClick={handleCloseTransitLoad} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
             </div>
 
             {/* Tab Navigation */}
@@ -823,9 +807,8 @@ const FuelIntegrityApp = () => {
 
             {transitDetailTab === 'transport' && (
               <>
-                {/* Vehicle & Driver */}
+                {/* Transport Details */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Vehicle & Driver</h4>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
@@ -919,29 +902,31 @@ const FuelIntegrityApp = () => {
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />Load Consignment</h3>
         <p className="text-sm text-gray-500 mb-3">Enter the truck license plate number or scan the QR code to load a consignment.</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={licensePlateInput}
-            onChange={e => setLicensePlateInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleLicensePlateLookup(); }}
-            placeholder="e.g. KCA 123A"
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent uppercase"
-            disabled={licensePlateLoading}
-            autoFocus
-          />
-          <button
-            onClick={handleLicensePlateLookup}
-            disabled={licensePlateLoading || !licensePlateInput.trim()}
-            className="bg-green-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <Scan className="w-5 h-5" />
-            Search
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={licensePlateInput}
+              onChange={e => setLicensePlateInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleLicensePlateLookup(); }}
+              placeholder="e.g. KCA 123A"
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent uppercase"
+              disabled={licensePlateLoading}
+              autoFocus
+            />
+            <button
+              onClick={handleLicensePlateLookup}
+              disabled={licensePlateLoading || !licensePlateInput.trim()}
+              className="bg-green-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
+            >
+              <Scan className="w-5 h-5" />
+              Search
+            </button>
+          </div>
           <button
             onClick={() => startCameraScanner('consignment')}
             disabled={licensePlateLoading}
-            className="bg-yellow-500 text-white px-5 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="w-full bg-yellow-500 text-white px-5 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Camera className="w-5 h-5" />
             Scan QR
@@ -983,7 +968,19 @@ const FuelIntegrityApp = () => {
               <p className="font-semibold text-green-800 mb-2">QR Code Scanned Successfully</p>
               <div className="bg-white p-3 rounded text-xs overflow-auto mb-3"><pre className="text-gray-700">{scannedData}</pre></div>
               <div className="flex gap-2">
-                <button onClick={() => { setScannedData(null); alert('Transaction confirmed successfully!'); }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-semibold">Confirm</button>
+                <button onClick={() => {
+                  try {
+                    const data = JSON.parse(scannedData);
+                    const txnId = data.transactionId || data.txnId || data.id;
+                    if (txnId) {
+                      setTransactions(prev => prev.map(t => t.id === txnId ? { ...t, status: 'completed' } : t));
+                    }
+                  } catch {
+                    // Try matching scannedData as a raw transaction ID
+                    setTransactions(prev => prev.map(t => t.id === scannedData.trim() ? { ...t, status: 'completed' } : t));
+                  }
+                  setScannedData(null);
+                }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-semibold">Confirm</button>
                 <button onClick={() => setScannedData(null)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
               </div>
             </div>
