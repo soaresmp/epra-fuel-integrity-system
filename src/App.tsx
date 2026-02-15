@@ -451,18 +451,7 @@ const FuelIntegrityApp = () => {
             <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
               <div className="bg-white p-2 rounded-lg flex-shrink-0">
                 <QRCodeSVG
-                  value={JSON.stringify({
-                    transactionId: txn.id,
-                    from: txn.from,
-                    to: txn.to,
-                    volume: txn.volume,
-                    type: txn.type,
-                    vehicle: txn.vehicle,
-                    sealNumber: txn.sealNumberLoading,
-                    markerBatchNo: txn.markerBatchNo,
-                    loadingTicket: txn.loadingTicket,
-                    expectedDelivery: txn.expectedDelivery,
-                  })}
+                  value={txn.id}
                   size={120}
                   bgColor="#ffffff"
                   fgColor="#000000"
@@ -496,7 +485,7 @@ const FuelIntegrityApp = () => {
 
             {/* Tab Navigation */}
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Details</button>
+              <button onClick={() => setDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Consignment</button>
               <button onClick={() => setDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Transport Details</button>
             </div>
 
@@ -542,13 +531,6 @@ const FuelIntegrityApp = () => {
                   </div>
                 </div>
 
-                {/* Seal Numbers */}
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
-                  </div>
-                </div>
               </>
             )}
 
@@ -565,9 +547,15 @@ const FuelIntegrityApp = () => {
                   </div>
                 </div>
 
-                {/* Schedule */}
+                {/* Seal Numbers */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Schedule</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
+                  </div>
+                </div>
+
+                <div>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Datetime</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
@@ -707,6 +695,7 @@ const FuelIntegrityApp = () => {
 
   // ── TRANSIT LOAD REGISTRATION MODAL (License Plate) ──
   const TransitLoadRegistrationModal = () => {
+    const [transitDetailTab, setTransitDetailTab] = useState<'details' | 'transport'>('details');
     if (!transitLoadRegistration) return null;
     const txn = transitLoadRegistration.transaction;
     const lookupTime = new Date(transitLoadRegistration.lookedUpAt);
@@ -750,6 +739,22 @@ const FuelIntegrityApp = () => {
               </div>
               <button onClick={handleCloseTransitLoad} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
+            <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
+              <div className="bg-white p-2 rounded-lg flex-shrink-0">
+                <QRCodeSVG
+                  value={txn.id}
+                  size={120}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <div className="text-xs text-gray-600">
+                <p className="font-semibold text-gray-800 text-sm mb-1">Consignment QR</p>
+                <p>Scan to receive the consignment</p>
+              </div>
+            </div>
           </div>
           <div className="p-4 space-y-4">
             {/* Match notification */}
@@ -758,82 +763,96 @@ const FuelIntegrityApp = () => {
               <span className="font-semibold text-sm text-green-800">Vehicle {txn.vehicle} — Consignment Found</span>
             </div>
 
-            {/* Transfer Route */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 text-center">
-                  <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Source Depot</p>
-                  <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
-                </div>
-                <div className="text-green-600 font-bold text-lg">→</div>
-                <div className="flex-1 text-center">
-                  <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Destination</p>
-                  <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Consignment Details */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Consignment Details</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
-              </div>
-            </div>
-
-            {/* Transport Details */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transport Details</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
-                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
-              </div>
-            </div>
-
-            {/* Seal & Marker */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal & Marker Details</h4>
-              <div className="space-y-3">
-                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500">Loading Seal</p>
-                  <p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p>
-                </div>
-                <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Batch</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Timing */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Schedule</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Loading Date</span><span className="font-semibold text-gray-800">{txn.date} {txn.time}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Expected Delivery</span><span className="font-semibold text-gray-800">{txn.expectedDelivery}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Approved By</span><span className="font-semibold text-gray-800">{txn.approvedBy}</span></div>
-              </div>
-            </div>
-
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3">
               <button onClick={handleConfirmTransitLoad} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
                 <ClipboardCheck className="w-5 h-5" />Confirm Departure
               </button>
               <button onClick={handleCloseTransitLoad} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
             </div>
+
+            {/* Tab Navigation */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+              <button onClick={() => setTransitDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Consignment</button>
+              <button onClick={() => setTransitDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Transport Details</button>
+            </div>
+
+            {transitDetailTab === 'details' && (
+              <>
+                {/* Transfer Route */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 text-center">
+                      <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                      <p className="text-xs text-gray-500">Source Depot</p>
+                      <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
+                    </div>
+                    <div className="text-green-600 font-bold text-lg">&rarr;</div>
+                    <div className="flex-1 text-center">
+                      <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                      <p className="text-xs text-gray-500">Destination</p>
+                      <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fuel & Loading Information */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel & Loading Information</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
+                  </div>
+                </div>
+
+                {/* Fuel Marking Details */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel Marking Details</h4>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Type</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Batch Number</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {transitDetailTab === 'transport' && (
+              <>
+                {/* Vehicle & Driver */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Vehicle & Driver</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
+                  </div>
+                </div>
+
+                {/* Seal Numbers */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Datetime</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">GPS at Loading</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Approved By</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -974,13 +993,13 @@ const FuelIntegrityApp = () => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b"><h3 className="font-semibold text-gray-800">Consignments</h3></div>
         {transactions.slice(0, 5).map(txn => (
-          <div key={txn.id} className="p-4 border-b last:border-b-0">
+          <div key={txn.id} className="p-4 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 transition" onClick={() => setSelectedTransaction(txn)}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-gray-800">{txn.id}</span>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
               </div>
-              <button onClick={() => setSelectedTransaction(txn)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><Eye className="w-5 h-5" /></button>
+              <button onClick={(e) => { e.stopPropagation(); setSelectedTransaction(txn); }} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><Eye className="w-5 h-5" /></button>
             </div>
             <div className="space-y-1 text-sm text-gray-600">
               <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{txn.from} → {txn.to}</span></div>
@@ -1125,7 +1144,6 @@ const FuelIntegrityApp = () => {
 
       const tests = [
         { param: 'Fuel Marker Presence', standard: 'Detected', measured: insp.result === 'PASS' ? 'Detected' : 'Not Detected', pass: insp.result === 'PASS' },
-        { param: 'Marker Concentration', standard: '12-18 ppm', measured: insp.result === 'PASS' ? '15.2 ppm' : '8.1 ppm', pass: insp.result === 'PASS' },
         { param: 'Density (kg/m\u00b3)', standard: '820-860', measured: insp.result === 'PASS' ? '835.6' : '812.3', pass: insp.result === 'PASS' },
         { param: 'Water Content (%)', standard: '< 0.05', measured: insp.result === 'PASS' ? '0.02' : '0.08', pass: insp.result === 'PASS' },
         { param: 'Sulphur Content (ppm)', standard: '< 50', measured: insp.result === 'PASS' ? '32' : '67', pass: insp.result === 'PASS' },
@@ -1219,7 +1237,6 @@ const FuelIntegrityApp = () => {
         <div class="section"><h2>Test Results</h2>
         <table><tr><th>Test Parameter</th><th>Standard</th><th>Measured</th><th>Status</th></tr>
         <tr><td>Fuel Marker Presence</td><td>Detected</td><td>${insp.result === 'PASS' ? 'Detected' : 'Not Detected'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
-        <tr><td>Marker Concentration</td><td>12-18 ppm</td><td>${insp.result === 'PASS' ? '15.2 ppm' : '8.1 ppm'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
         <tr><td>Density (kg/m\u00b3)</td><td>820-860</td><td>${insp.result === 'PASS' ? '835.6' : '812.3'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
         <tr><td>Water Content (%)</td><td>&lt; 0.05</td><td>${insp.result === 'PASS' ? '0.02' : '0.08'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
         <tr><td>Sulphur Content (ppm)</td><td>&lt; 50</td><td>${insp.result === 'PASS' ? '32' : '67'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
@@ -1274,7 +1291,6 @@ const FuelIntegrityApp = () => {
                     <tbody>
                       {[
                         { param: 'Fuel Marker Presence', standard: 'Detected', measured: selectedLocation.inspection.result === 'PASS' ? 'Detected' : 'Not Detected' },
-                        { param: 'Marker Concentration', standard: '12-18 ppm', measured: selectedLocation.inspection.result === 'PASS' ? '15.2 ppm' : '8.1 ppm' },
                         { param: 'Density (kg/m\u00b3)', standard: '820-860', measured: selectedLocation.inspection.result === 'PASS' ? '835.6' : '812.3' },
                         { param: 'Water Content (%)', standard: '< 0.05', measured: selectedLocation.inspection.result === 'PASS' ? '0.02' : '0.08' },
                         { param: 'Sulphur Content (ppm)', standard: '< 50', measured: selectedLocation.inspection.result === 'PASS' ? '32' : '67' },
@@ -1395,13 +1411,13 @@ const FuelIntegrityApp = () => {
             </div>
             <div className="space-y-3">
               {viewType === 'depots' ? depots.map(d => (
-                <div key={d.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
+                <div key={d.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer" onClick={() => setSelectedLocation(d)}>
                   <div className="flex items-start gap-3">
                     <Building2 className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="font-semibold text-gray-800">{d.name}</h3>
-                        <button onClick={() => setSelectedLocation(d)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition flex-shrink-0" title="View Details"><ChevronRight className="w-5 h-5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedLocation(d); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition flex-shrink-0" title="View Details"><Eye className="w-5 h-5" /></button>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{d.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{d.location}</span></div>
@@ -1414,7 +1430,7 @@ const FuelIntegrityApp = () => {
                   </div>
                 </div>
               )) : gasStations.map(s => (
-                <div key={s.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
+                <div key={s.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer" onClick={() => setSelectedLocation(s)}>
                   <div className="flex items-start gap-3">
                     <Store className="w-8 h-8 text-green-600 flex-shrink-0 mt-1" />
                     <div className="flex-1 min-w-0">
@@ -1426,7 +1442,7 @@ const FuelIntegrityApp = () => {
                           ) : (
                             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">No Inspection</span>
                           )}
-                          <button onClick={() => setSelectedLocation(s)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><ChevronRight className="w-5 h-5" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedLocation(s); }} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><Eye className="w-5 h-5" /></button>
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{s.company}</p>
