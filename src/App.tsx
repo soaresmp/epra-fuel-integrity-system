@@ -9,7 +9,7 @@ const FuelIntegrityApp = () => {
   const [currentView, setCurrentView] = useState('login');
   const [menuOpen, setMenuOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
-  const [scanType, setScanType] = useState<'loading' | 'delivery'>('delivery');
+  const [scanType, setScanType] = useState<'loading' | 'delivery' | 'consignment'>('delivery');
   const [scannedData, setScannedData] = useState<string | null>(null);
   const [deliveryRegistration, setDeliveryRegistration] = useState<any>(null);
   const [deliveryConfirmed, setDeliveryConfirmed] = useState(false);
@@ -120,7 +120,7 @@ const FuelIntegrityApp = () => {
     setScannerError(null);
   }, []);
 
-  const startCameraScanner = useCallback((type: 'loading' | 'delivery') => {
+  const startCameraScanner = useCallback((type: 'loading' | 'delivery' | 'consignment') => {
     setScanType(type);
     setScannerActive(true);
     setScannerError(null);
@@ -129,11 +129,66 @@ const FuelIntegrityApp = () => {
     setDeliveryConfirmed(false);
   }, []);
 
+  const generateConsignment = useCallback((plate: string) => {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 5);
+    const txnNum = String(transactions.length + 1).padStart(3, '0');
+    const depotIndex = Math.floor(Math.random() * depots.length);
+    const stationIndex = Math.floor(Math.random() * gasStations.length);
+    const depot = depots[depotIndex];
+    const station = gasStations[stationIndex];
+    const fuelTypes = ['Diesel', 'Petrol'];
+    const fuelType = fuelTypes[Math.floor(Math.random() * fuelTypes.length)];
+    const volume = (Math.floor(Math.random() * 6) + 3) * 1000;
+    const drivers = ['James Mwangi', 'Peter Ochieng', 'Mary Wanjiku', 'John Kamau', 'Alice Njeri'];
+    const transporters = ['KenTrans Logistics Ltd', 'Coast Fuel Carriers', 'Rift Valley Transporters', 'SafeHaul Kenya Ltd', 'Lake Basin Logistics'];
+    const driver = drivers[Math.floor(Math.random() * drivers.length)];
+    const transporter = transporters[Math.floor(Math.random() * transporters.length)];
+    const expectedDelivery = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+    return {
+      id: `TXN-${txnNum}`,
+      from: depot.name,
+      to: station.name,
+      vehicle: plate,
+      status: 'in-transit' as const,
+      volume,
+      type: fuelType,
+      date: dateStr,
+      time: timeStr,
+      driver,
+      driverLicense: `DL-${now.getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(6, '0')}`,
+      transporter,
+      loadingBay: `Bay ${Math.floor(Math.random() * 4) + 1}`,
+      compartment: volume > 5000 ? 'C1, C2, C3' : volume > 3000 ? 'C1, C2' : 'C1',
+      sealNumberLoading: `SL-${dateStr.replace(/-/g, '')}-${txnNum}`,
+      sealNumberDelivery: `SD-${dateStr.replace(/-/g, '')}-${txnNum}`,
+      markerType: 'EPRA Molecular Marker',
+      markerConcentration: `${(14.5 + Math.random()).toFixed(1)} ppm`,
+      markerBatchNo: `MBN-${now.getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      temperature: `${(20 + Math.random() * 12).toFixed(1)}°C`,
+      density: fuelType === 'Diesel' ? `${(834 + Math.random() * 3).toFixed(1)} kg/m³` : `${(747 + Math.random() * 3).toFixed(1)} kg/m³`,
+      loadingTicket: `LT-${now.getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`,
+      expectedDelivery: `${expectedDelivery.toISOString().slice(0, 10)} ${expectedDelivery.toTimeString().slice(0, 5)}`,
+      gpsLoading: depot.coordinates,
+      approvedBy: depot.contact,
+    };
+  }, [transactions, depots, gasStations]);
+
   const handleQRCodeScanned = useCallback((decodedText: string) => {
     stopCamera();
     try {
       const data = JSON.parse(decodedText);
-      if (scanType === 'delivery') {
+      if (scanType === 'consignment') {
+        // Consignment scan: match by transactionId or vehicle, or generate
+        const matchedTxn = transactions.find(t =>
+          t.id === data.transactionId || t.id === data.txnId ||
+          (data.vehicle && t.vehicle.replace(/\s+/g, '').toUpperCase() === data.vehicle.replace(/\s+/g, '').toUpperCase())
+        );
+        const txn = matchedTxn || generateConsignment(data.vehicle || data.transactionId || 'UNKNOWN');
+        setTransitLoadRegistration({ transaction: txn, lookedUpAt: new Date().toISOString() });
+      } else if (scanType === 'delivery') {
         // Match scanned QR to an existing loading transaction
         const matchedTxn = transactions.find(t =>
           t.id === data.transactionId || t.id === data.txnId
@@ -158,7 +213,7 @@ const FuelIntegrityApp = () => {
         setScannerError('Invalid QR code format. Please scan a valid loading transaction QR code.');
       }
     }
-  }, [scanType, transactions, stopCamera]);
+  }, [scanType, transactions, stopCamera, generateConsignment]);
 
   // Initialize camera scanner when scannerActive becomes true
   useEffect(() => {
@@ -210,11 +265,8 @@ const FuelIntegrityApp = () => {
         t.vehicle.replace(/\s+/g, '').toUpperCase() === plate.replace(/\s+/g, '').toUpperCase()
       );
       setLicensePlateLoading(false);
-      if (matchedTxn) {
-        setTransitLoadRegistration({ transaction: matchedTxn, lookedUpAt: new Date().toISOString() });
-      } else {
-        setLicensePlateError(`No consignment found for vehicle "${plate}". Please verify the license plate number and try again.`);
-      }
+      const txn = matchedTxn || generateConsignment(plate);
+      setTransitLoadRegistration({ transaction: txn, lookedUpAt: new Date().toISOString() });
     }, 1500);
   };
 
@@ -717,10 +769,10 @@ const FuelIntegrityApp = () => {
       <TransitLoadRegistrationModal />
       <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
 
-      {/* License Plate Transit Load Lookup */}
+      {/* License Plate Consignment Lookup */}
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />Register Transit Load</h3>
-        <p className="text-sm text-gray-500 mb-3">Enter the truck license plate number to look up and register a transit load consignment.</p>
+        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />Load Consignment</h3>
+        <p className="text-sm text-gray-500 mb-3">Enter the truck license plate number or scan the QR code to load a consignment.</p>
         <div className="flex gap-2">
           <input
             type="text"
@@ -739,6 +791,14 @@ const FuelIntegrityApp = () => {
             <Scan className="w-5 h-5" />
             Search
           </button>
+          <button
+            onClick={() => startCameraScanner('consignment')}
+            disabled={licensePlateLoading}
+            className="bg-yellow-500 text-white px-5 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Camera className="w-5 h-5" />
+            Scan QR
+          </button>
         </div>
         {licensePlateLoading && (
           <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -755,11 +815,6 @@ const FuelIntegrityApp = () => {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => startCameraScanner('loading')} className="bg-green-600 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-green-700 transition"><Scan className="w-8 h-8" /><span className="font-semibold text-sm">Scan Loading QR</span></button>
-        <button onClick={() => startCameraScanner('delivery')} className="bg-yellow-500 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-yellow-600 transition"><Camera className="w-8 h-8" /><span className="font-semibold text-sm">Scan Delivery QR</span></button>
       </div>
       {scannerError && (
         <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
@@ -1743,7 +1798,7 @@ const FuelIntegrityApp = () => {
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
           <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Scan {scanType === 'delivery' ? 'Delivery' : 'Loading'} QR Code</h3>
+              <h3 className="font-semibold">Scan {scanType === 'consignment' ? 'Consignment' : scanType === 'delivery' ? 'Delivery' : 'Loading'} QR Code</h3>
               <p className="text-xs text-gray-400 mt-0.5">Point camera at the consignment QR code</p>
             </div>
             <button onClick={stopCamera} className="text-white bg-gray-700 rounded-full p-2 hover:bg-gray-600"><X className="w-5 h-5" /></button>
@@ -1762,7 +1817,7 @@ const FuelIntegrityApp = () => {
             )}
           </div>
           <div className="p-4 bg-gray-900 text-center">
-            <p className="text-sm text-gray-400">{scanType === 'delivery' ? 'Scan the loading transaction QR to register delivery' : 'Scan the QR code on the loading ticket'}</p>
+            <p className="text-sm text-gray-400">{scanType === 'consignment' ? 'Scan the QR code to load consignment' : scanType === 'delivery' ? 'Scan the loading transaction QR to register delivery' : 'Scan the QR code on the loading ticket'}</p>
           </div>
         </div>
       )}
