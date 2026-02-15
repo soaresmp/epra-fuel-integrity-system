@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Depot {
+  id          String    @id
+  name        String
+  location    String
+  company     String
+  capacity    Int
+  current     Int
+  contact     String
+  phone       String
+  email       String
+  website     String    @default("")
+  coordinates String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Stations supplied by this depot
+  stations    GasStation[]
+}
+
+model GasStation {
+  id                 String    @id
+  name               String
+  location           String
+  company            String
+  capacity           Int
+  current            Int
+  contact            String
+  phone              String
+  email              String
+  depotId            String?
+  depot              Depot?    @relation(fields: [depotId], references: [id])
+  coordinates        String
+  inspectionLastDate String?
+  inspectionResult   String?
+  inspectionFootage  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Transaction {
+  id                    String   @id
+  fromLocation          String   @map("from_location")
+  toLocation            String   @map("to_location")
+  vehicle               String
+  status                String
+  volume                Int
+  fuelType              String   @map("fuel_type")
+  date                  String
+  time                  String
+  driver                String
+  driverLicense         String   @map("driver_license")
+  transporter           String
+  loadingBay            String   @map("loading_bay")
+  compartment           String
+  sealNumberLoading     String   @map("seal_number_loading")
+  sealNumberDelivery    String   @map("seal_number_delivery")
+  markerType            String   @map("marker_type")
+  markerConcentration   String   @map("marker_concentration")
+  markerBatchNo         String   @map("marker_batch_no")
+  temperature           String
+  density               String
+  loadingTicket         String   @map("loading_ticket")
+  expectedDelivery      String   @map("expected_delivery")
+  gpsLoading            String   @map("gps_loading")
+  approvedBy            String   @map("approved_by")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model StockData {
+  id          Int      @id @default(autoincrement())
+  location    String   @unique
+  opening     Int
+  current     Int
+  capacity    Int
+  variance    Float
+  receipts    Int
+  withdrawals Int
+  losses      Int
+  company     String
+  diesel      Int
+  gasoline    Int
+  kerosene    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Incident {
+  id         String   @id
+  location   String
+  type       String
+  severity   String
+  timestamp  String
+  status     String
+  assignedTo String   @map("assigned_to")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  role      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
