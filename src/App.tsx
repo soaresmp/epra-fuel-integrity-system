@@ -22,6 +22,12 @@ const FuelIntegrityApp = () => {
   const [transitLoadRegistration, setTransitLoadRegistration] = useState<any>(null);
   const [transitLoadConfirmed, setTransitLoadConfirmed] = useState(false);
   const [licensePlateError, setLicensePlateError] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState({
+    appTitle: 'Fuel Integrity',
+    appSubtitle: 'Management System',
+    footerText: 'Fuel Integrity',
+    subFooterText: 'Management System',
+  });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -307,15 +313,11 @@ const FuelIntegrityApp = () => {
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="flex justify-center mb-6">
           <div className="w-24 h-24 bg-gradient-to-br from-green-600 to-green-700 rounded-full flex items-center justify-center shadow-lg">
-            <div className="text-center">
-              <Fuel className="w-12 h-12 text-white mx-auto mb-1" />
-              <div className="text-white text-xs font-bold">EPRA</div>
-            </div>
+            <Fuel className="w-12 h-12 text-white" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-1">Energy & Petroleum</h1>
-        <h2 className="text-xl font-bold text-center text-green-700 mb-2">Regulatory Authority</h2>
-        <p className="text-center text-gray-600 mb-6 text-sm">Fuel Integrity Management System</p>
+        <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">Fuel Integrity</h1>
+        <h2 className="text-xl font-bold text-center text-green-700 mb-6">Management System</h2>
         <div className="space-y-4">
           <button onClick={() => handleLogin('admin')} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Login as Administrator</button>
           <button onClick={() => handleLogin('operator')} className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">Login as Depot Operator</button>
@@ -647,8 +649,7 @@ const FuelIntegrityApp = () => {
           <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-6 rounded-t-lg text-center">
               <CheckCircle className="w-16 h-16 mx-auto mb-3" />
-              <h3 className="font-bold text-xl">Transit Load Registered</h3>
-              <p className="text-green-100 mt-1">Consignment {txn.id} departure confirmed</p>
+              <h3 className="font-bold text-xl">Departure Confirmed</h3>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -1745,13 +1746,78 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── SETTINGS VIEW ──
+  const SettingsView = () => {
+    const [localSettings, setLocalSettings] = useState({ ...appSettings });
+
+    const handleSave = () => {
+      setAppSettings(localSettings);
+      setCurrentView('dashboard');
+    };
+
+    return (
+      <div className="p-4 space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => setCurrentView('dashboard')} className="text-green-700">
+            <X className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-bold text-gray-800">App Settings</h2>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">App Title</label>
+            <input
+              type="text"
+              value={localSettings.appTitle}
+              onChange={e => setLocalSettings({ ...localSettings, appTitle: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">App Subtitle</label>
+            <input
+              type="text"
+              value={localSettings.appSubtitle}
+              onChange={e => setLocalSettings({ ...localSettings, appSubtitle: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Footer Text</label>
+            <input
+              type="text"
+              value={localSettings.footerText}
+              onChange={e => setLocalSettings({ ...localSettings, footerText: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sub-footer Text</label>
+            <input
+              type="text"
+              value={localSettings.subFooterText}
+              onChange={e => setLocalSettings({ ...localSettings, subFooterText: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <button
+            onClick={handleSave}
+            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition"
+          >
+            Save Settings
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ── NAV COMPONENTS ──
   const NavBar = () => (
     <div className="bg-gradient-to-r from-green-700 to-green-600 text-white p-4 shadow-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center"><Fuel className="w-6 h-6 text-green-700" /></div>
-          <div><h1 className="font-bold text-sm leading-tight">EPRA</h1><p className="text-xs text-green-100">Fuel Integrity Management System</p></div>
+          <div><h1 className="font-bold text-sm leading-tight">{appSettings.appTitle}</h1><p className="text-xs text-green-100">{appSettings.appSubtitle}</p></div>
         </div>
         <button onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
       </div>
@@ -1780,16 +1846,16 @@ const FuelIntegrityApp = () => {
     <div className={`fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuOpen(false)}>
       <div className={`fixed right-0 top-0 bottom-0 w-64 bg-white shadow-xl transform transition-transform ${menuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={e => e.stopPropagation()}>
         <div className="p-4 bg-gradient-to-r from-green-700 to-green-600 text-white">
-          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">EPRA Menu</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
+          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Main Menu</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
           <button className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
-          <button className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
+          <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
           <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>Logout</span></button>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
-          <p className="text-xs text-gray-600 text-center">Energy & Petroleum</p>
-          <p className="text-xs text-gray-600 text-center">Regulatory Authority</p>
+          <p className="text-xs text-gray-600 text-center">{appSettings.footerText}</p>
+          <p className="text-xs text-gray-600 text-center">{appSettings.subFooterText}</p>
           <p className="text-xs text-green-600 font-semibold text-center mt-1">Republic of Kenya</p>
         </div>
       </div>
@@ -1839,6 +1905,7 @@ const FuelIntegrityApp = () => {
       {currentView === 'incidents' && <IncidentsView />}
       {currentView === 'reports' && <ReportsView />}
       {currentView === 'directory' && <DirectoryView />}
+      {currentView === 'settings' && <SettingsView />}
 
       <BottomNav />
     </div>
