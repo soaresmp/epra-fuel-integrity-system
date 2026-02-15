@@ -907,11 +907,11 @@ const FuelIntegrityApp = () => {
               <span className="font-semibold text-gray-800">{txn.id}</span>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
             </div>
-            <button onClick={() => setSelectedTransaction(txn)} className="mb-2 w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2 text-sm"><Eye className="w-4 h-4" />View Details</button>
             <div className="space-y-1 text-sm text-gray-600">
               <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{txn.from} → {txn.to}</span></div>
               <div className="flex items-center gap-2"><Truck className="w-4 h-4" /><span>{txn.vehicle} | {txn.volume}L {txn.type}</span></div>
             </div>
+            <button onClick={() => setSelectedTransaction(txn)} className="mt-3 w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2 text-sm"><Eye className="w-4 h-4" />View Details</button>
           </div>
         ))}
       </div>
