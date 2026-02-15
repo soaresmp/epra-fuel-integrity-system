@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, ChevronRight, Printer, Download } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { jsPDF } from 'jspdf';
 
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
@@ -22,6 +23,7 @@ const FuelIntegrityApp = () => {
   const [transitLoadRegistration, setTransitLoadRegistration] = useState<any>(null);
   const [transitLoadConfirmed, setTransitLoadConfirmed] = useState(false);
   const [licensePlateError, setLicensePlateError] = useState<string | null>(null);
+  const [scanDeliveryConfirm, setScanDeliveryConfirm] = useState<any>(null);
   const [appSettings, setAppSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('epra_appSettings');
@@ -211,7 +213,11 @@ const FuelIntegrityApp = () => {
           (data.vehicle && t.vehicle.replace(/\s+/g, '').toUpperCase() === data.vehicle.replace(/\s+/g, '').toUpperCase())
         );
         const txn = matchedTxn || generateConsignment(data.vehicle || data.transactionId || 'UNKNOWN');
-        setTransitLoadRegistration({ transaction: txn, lookedUpAt: new Date().toISOString() });
+        if (txn.status === 'in-transit') {
+          setScanDeliveryConfirm({ transaction: txn, scannedAt: new Date().toISOString() });
+        } else {
+          setTransitLoadRegistration({ transaction: txn, lookedUpAt: new Date().toISOString() });
+        }
       } else if (scanType === 'delivery') {
         // Match scanned QR to an existing loading transaction
         const matchedTxn = transactions.find(t =>
@@ -428,6 +434,7 @@ const FuelIntegrityApp = () => {
 
   // ── SCT LOADING DETAIL MODAL ──
   const SCTLoadingDetailModal = () => {
+    const [detailTab, setDetailTab] = useState<'details' | 'transport'>('details');
     if (!selectedTransaction) return null;
     const txn = selectedTransaction;
     return (
@@ -441,28 +448,31 @@ const FuelIntegrityApp = () => {
               </div>
               <button onClick={() => setSelectedTransaction(null)} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
-            <div className="mt-3 flex items-center gap-3 bg-white bg-opacity-10 rounded-lg p-3">
-              <QRCodeSVG
-                value={JSON.stringify({
-                  transactionId: txn.id,
-                  from: txn.from,
-                  to: txn.to,
-                  volume: txn.volume,
-                  type: txn.type,
-                  vehicle: txn.vehicle,
-                  sealNumber: txn.sealNumberLoading,
-                  markerBatchNo: txn.markerBatchNo,
-                  loadingTicket: txn.loadingTicket,
-                  expectedDelivery: txn.expectedDelivery,
-                })}
-                size={80}
-                bgColor="transparent"
-                fgColor="#ffffff"
-                level="M"
-              />
-              <div className="text-xs text-green-100">
-                <p className="font-semibold text-white text-sm mb-1">Consignment QR</p>
-                <p>Scan to receive this fuel consignment via SCT</p>
+            <div className="mt-3 flex items-center gap-3 bg-white rounded-lg p-3">
+              <div className="bg-white p-2 rounded-lg flex-shrink-0">
+                <QRCodeSVG
+                  value={JSON.stringify({
+                    transactionId: txn.id,
+                    from: txn.from,
+                    to: txn.to,
+                    volume: txn.volume,
+                    type: txn.type,
+                    vehicle: txn.vehicle,
+                    sealNumber: txn.sealNumberLoading,
+                    markerBatchNo: txn.markerBatchNo,
+                    loadingTicket: txn.loadingTicket,
+                    expectedDelivery: txn.expectedDelivery,
+                  })}
+                  size={120}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <div className="text-xs text-gray-600">
+                <p className="font-semibold text-gray-800 text-sm mb-1">Consignment QR</p>
+                <p>Scan to receive the consignment</p>
               </div>
             </div>
           </div>
@@ -484,76 +494,90 @@ const FuelIntegrityApp = () => {
               </button>
             )}
 
-            {/* Transfer Route */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 text-center">
-                  <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Source Depot</p>
-                  <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
+            {/* Tab Navigation */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+              <button onClick={() => setDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Details</button>
+              <button onClick={() => setDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Transport Details</button>
+            </div>
+
+            {detailTab === 'details' && (
+              <>
+                {/* Transfer Route */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 text-center">
+                      <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                      <p className="text-xs text-gray-500">Source Depot</p>
+                      <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
+                    </div>
+                    <div className="text-green-600 font-bold text-lg">&rarr;</div>
+                    <div className="flex-1 text-center">
+                      <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                      <p className="text-xs text-gray-500">Destination</p>
+                      <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-green-600 font-bold text-lg">→</div>
-                <div className="flex-1 text-center">
-                  <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Destination</p>
-                  <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
+
+                {/* Fuel & Loading Information */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel & Loading Information</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Fuel & Loading Information */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel & Loading Information</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
-              </div>
-            </div>
+                {/* Fuel Marking Details */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel Marking Details</h4>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Type</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Batch Number</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                  </div>
+                </div>
 
-            {/* Fuel Marking Details */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel Marking Details</h4>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Type</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
+                {/* Seal Numbers */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
+                  </div>
+                </div>
+              </>
+            )}
 
-                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Batch Number</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
-              </div>
-            </div>
+            {detailTab === 'transport' && (
+              <>
+                {/* Transport Details */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Vehicle & Driver</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
+                  </div>
+                </div>
 
-            {/* Seal Numbers */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
-              </div>
-            </div>
-
-            {/* Transport Details */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transport Details</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
-                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Date</span><span className="font-semibold text-sm text-gray-800">{txn.date}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Time</span><span className="font-semibold text-sm text-gray-800">{txn.time}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">GPS at Loading</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
-                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Approved By</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
-              </div>
-            </div>
+                {/* Schedule */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Schedule</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Datetime</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">GPS at Loading</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Approved By</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -816,12 +840,60 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── SCAN DELIVERY CONFIRM MODAL ──
+  const ScanDeliveryConfirmModal = () => {
+    if (!scanDeliveryConfirm) return null;
+    const txn = scanDeliveryConfirm.transaction;
+    const scanTime = new Date(scanDeliveryConfirm.scannedAt);
+
+    const handleConfirm = () => {
+      setTransactions(prev => prev.map(t => t.id === txn.id ? { ...t, status: 'completed' } : t));
+      setScanDeliveryConfirm(null);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setScanDeliveryConfirm(null)}>
+        <div className="bg-white rounded-lg max-w-md w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-gradient-to-r from-yellow-500 to-yellow-400 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">Confirm Delivery</h3>
+                <p className="text-yellow-100 text-sm">{txn.id}</p>
+              </div>
+              <button onClick={() => setScanDeliveryConfirm(null)} className="text-white hover:text-yellow-200"><X className="w-6 h-6" /></button>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+              <Truck className="w-5 h-5 text-yellow-600" />
+              <span className="font-semibold text-sm text-yellow-800">Consignment In Transit — Confirm Delivery?</span>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-600">From</span><span className="font-semibold text-gray-800">{txn.from}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">To</span><span className="font-semibold text-gray-800">{txn.to}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Vehicle</span><span className="font-semibold text-gray-800">{txn.vehicle}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Volume</span><span className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L {txn.type}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Scanned At</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleConfirm} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
+                <ClipboardCheck className="w-5 h-5" />Confirm Delivery
+              </button>
+              <button onClick={() => setScanDeliveryConfirm(null)} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── SCT ──
   const SCTView = () => (
     <div className="p-4 space-y-4">
       <SCTLoadingDetailModal />
       <DeliveryRegistrationModal />
       <TransitLoadRegistrationModal />
+      <ScanDeliveryConfirmModal />
       <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
 
       {/* License Plate Consignment Lookup */}
@@ -904,14 +976,16 @@ const FuelIntegrityApp = () => {
         {transactions.slice(0, 5).map(txn => (
           <div key={txn.id} className="p-4 border-b last:border-b-0">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-gray-800">{txn.id}</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-800">{txn.id}</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
+              </div>
+              <button onClick={() => setSelectedTransaction(txn)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><Eye className="w-5 h-5" /></button>
             </div>
             <div className="space-y-1 text-sm text-gray-600">
               <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{txn.from} → {txn.to}</span></div>
               <div className="flex items-center gap-2"><Truck className="w-4 h-4" /><span>{txn.vehicle} | {txn.volume}L {txn.type}</span></div>
             </div>
-            <button onClick={() => setSelectedTransaction(txn)} className="mt-3 w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2 text-sm"><Eye className="w-4 h-4" />View Details</button>
           </div>
         ))}
       </div>
@@ -953,6 +1027,213 @@ const FuelIntegrityApp = () => {
   const DirectoryView = () => {
     const [viewType, setViewType] = useState('depots');
 
+    const generateInspectionPDF = () => {
+      if (!selectedLocation?.inspection) return;
+      const loc = selectedLocation;
+      const insp = loc.inspection;
+      const testId = `${loc.id}-${insp.lastDate.replace(/\//g, '')}`;
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Header bar
+      doc.setFillColor(22, 101, 52);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('EPRA - Fuel Integrity Management System', pageWidth / 2, 14, { align: 'center' });
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Fixed Location Test Report', pageWidth / 2, 22, { align: 'center' });
+
+      // Test ID
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(10);
+      doc.text(`Test ID: ${testId}`, 14, 40);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 14, 40, { align: 'right' });
+
+      // Divider
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 44, pageWidth - 14, 44);
+
+      // Station Information Section
+      let y = 52;
+      doc.setTextColor(22, 101, 52);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Station Information', 14, y);
+      y += 8;
+
+      const addRow = (label: string, value: string, yPos: number) => {
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(label, 14, yPos);
+        doc.setTextColor(30, 30, 30);
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, 80, yPos);
+        return yPos + 7;
+      };
+
+      y = addRow('Station Name:', loc.name, y);
+      y = addRow('Station ID:', loc.id, y);
+      y = addRow('Operator:', loc.company, y);
+      y = addRow('Location:', loc.location, y);
+      y = addRow('Coordinates:', loc.coordinates, y);
+
+      // Divider
+      y += 3;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, y, pageWidth - 14, y);
+      y += 8;
+
+      // Inspection Details Section
+      doc.setTextColor(22, 101, 52);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Inspection Details', 14, y);
+      y += 8;
+
+      y = addRow('Inspection Date:', insp.lastDate, y);
+      y = addRow('Inspector:', 'EPRA Field Inspector', y);
+      y = addRow('Inspection Type:', 'Fixed Location Test', y);
+
+      // Divider
+      y += 3;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, y, pageWidth - 14, y);
+      y += 8;
+
+      // Test Results Section
+      doc.setTextColor(22, 101, 52);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Test Results', 14, y);
+      y += 8;
+
+      // Results table header
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14, y - 4, pageWidth - 28, 8, 'F');
+      doc.setTextColor(60, 60, 60);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Test Parameter', 16, y);
+      doc.text('Standard', 90, y);
+      doc.text('Measured', 130, y);
+      doc.text('Status', 170, y);
+      y += 8;
+
+      const tests = [
+        { param: 'Fuel Marker Presence', standard: 'Detected', measured: insp.result === 'PASS' ? 'Detected' : 'Not Detected', pass: insp.result === 'PASS' },
+        { param: 'Marker Concentration', standard: '12-18 ppm', measured: insp.result === 'PASS' ? '15.2 ppm' : '8.1 ppm', pass: insp.result === 'PASS' },
+        { param: 'Density (kg/m\u00b3)', standard: '820-860', measured: insp.result === 'PASS' ? '835.6' : '812.3', pass: insp.result === 'PASS' },
+        { param: 'Water Content (%)', standard: '< 0.05', measured: insp.result === 'PASS' ? '0.02' : '0.08', pass: insp.result === 'PASS' },
+        { param: 'Sulphur Content (ppm)', standard: '< 50', measured: insp.result === 'PASS' ? '32' : '67', pass: insp.result === 'PASS' },
+        { param: 'Visual Clarity', standard: 'Clear', measured: insp.result === 'PASS' ? 'Clear' : 'Hazy', pass: insp.result === 'PASS' },
+      ];
+
+      doc.setFont('helvetica', 'normal');
+      tests.forEach(test => {
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(9);
+        doc.text(test.param, 16, y);
+        doc.text(test.standard, 90, y);
+        doc.text(test.measured, 130, y);
+        doc.setTextColor(test.pass ? 22 : 200, test.pass ? 101 : 30, test.pass ? 52 : 30);
+        doc.setFont('helvetica', 'bold');
+        doc.text(test.pass ? 'PASS' : 'FAIL', 170, y);
+        doc.setFont('helvetica', 'normal');
+        y += 7;
+      });
+
+      // Overall Result
+      y += 5;
+      const resultColor = insp.result === 'PASS' ? [22, 101, 52] : [200, 30, 30];
+      doc.setFillColor(resultColor[0], resultColor[1], resultColor[2]);
+      doc.roundedRect(14, y - 4, pageWidth - 28, 16, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`OVERALL RESULT: ${insp.result}`, pageWidth / 2, y + 6, { align: 'center' });
+      y += 20;
+
+      // Compliance note
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const compNote = insp.result === 'PASS'
+        ? 'All fuel quality parameters meet EPRA regulatory standards. Station is compliant.'
+        : 'Non-compliance detected. Corrective action required within 14 days. Re-inspection will be scheduled.';
+      doc.text(compNote, 14, y);
+
+      // Footer
+      const footerY = doc.internal.pageSize.getHeight() - 15;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, footerY - 5, pageWidth - 14, footerY - 5);
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(8);
+      doc.text('Energy & Petroleum Regulatory Authority (EPRA) - Kenya', 14, footerY);
+      doc.text('Confidential Document', pageWidth - 14, footerY, { align: 'right' });
+
+      doc.save(`Inspection_Report_${testId}.pdf`);
+    };
+
+    const handlePrintReport = () => {
+      if (!selectedLocation?.inspection) return;
+      const loc = selectedLocation;
+      const insp = loc.inspection;
+      const testId = `${loc.id}-${insp.lastDate.replace(/\//g, '')}`;
+      const resultColor = insp.result === 'PASS' ? '#166534' : '#dc2626';
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+      printWindow.document.write(`
+        <html><head><title>Inspection Report - ${testId}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+          .header { background: #166534; color: white; padding: 20px; text-align: center; margin: -40px -40px 20px; }
+          .header h1 { font-size: 18px; margin: 0; }
+          .header p { font-size: 12px; margin: 4px 0 0; opacity: 0.9; }
+          .section { margin: 16px 0; }
+          .section h2 { color: #166534; font-size: 14px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+          .row { display: flex; padding: 4px 0; font-size: 12px; }
+          .row .label { width: 140px; color: #666; }
+          .row .value { font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11px; }
+          th { background: #f0f0f0; padding: 6px 8px; text-align: left; border: 1px solid #ddd; }
+          td { padding: 6px 8px; border: 1px solid #ddd; }
+          .result-banner { background: ${resultColor}; color: white; text-align: center; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 4px; margin: 16px 0; }
+          @media print { body { margin: 20px; } .header { margin: -20px -20px 20px; } }
+        </style></head><body>
+        <div class="header"><h1>EPRA - Fuel Integrity Management System</h1><p>Fixed Location Test Report</p></div>
+        <p style="font-size:11px;color:#666;">Test ID: ${testId} | Generated: ${new Date().toLocaleDateString()}</p>
+        <div class="section"><h2>Station Information</h2>
+          <div class="row"><span class="label">Station Name:</span><span class="value">${loc.name}</span></div>
+          <div class="row"><span class="label">Station ID:</span><span class="value">${loc.id}</span></div>
+          <div class="row"><span class="label">Operator:</span><span class="value">${loc.company}</span></div>
+          <div class="row"><span class="label">Location:</span><span class="value">${loc.location}</span></div>
+        </div>
+        <div class="section"><h2>Inspection Details</h2>
+          <div class="row"><span class="label">Inspection Date:</span><span class="value">${insp.lastDate}</span></div>
+          <div class="row"><span class="label">Inspection Type:</span><span class="value">Fixed Location Test</span></div>
+        </div>
+        <div class="section"><h2>Test Results</h2>
+        <table><tr><th>Test Parameter</th><th>Standard</th><th>Measured</th><th>Status</th></tr>
+        <tr><td>Fuel Marker Presence</td><td>Detected</td><td>${insp.result === 'PASS' ? 'Detected' : 'Not Detected'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        <tr><td>Marker Concentration</td><td>12-18 ppm</td><td>${insp.result === 'PASS' ? '15.2 ppm' : '8.1 ppm'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        <tr><td>Density (kg/m\u00b3)</td><td>820-860</td><td>${insp.result === 'PASS' ? '835.6' : '812.3'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        <tr><td>Water Content (%)</td><td>&lt; 0.05</td><td>${insp.result === 'PASS' ? '0.02' : '0.08'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        <tr><td>Sulphur Content (ppm)</td><td>&lt; 50</td><td>${insp.result === 'PASS' ? '32' : '67'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        <tr><td>Visual Clarity</td><td>Clear</td><td>${insp.result === 'PASS' ? 'Clear' : 'Hazy'}</td><td style="color:${resultColor};font-weight:bold">${insp.result}</td></tr>
+        </table></div>
+        <div class="result-banner">OVERALL RESULT: ${insp.result}</div>
+        <p style="font-size:10px;color:#666;margin-top:20px;">${insp.result === 'PASS' ? 'All fuel quality parameters meet EPRA regulatory standards.' : 'Non-compliance detected. Corrective action required within 14 days.'}</p>
+        <hr style="margin-top:30px;border:none;border-top:1px solid #ddd;">
+        <p style="font-size:9px;color:#999;">Energy & Petroleum Regulatory Authority (EPRA) - Kenya | Confidential Document</p>
+        </body></html>`);
+      printWindow.document.close();
+      printWindow.print();
+    };
+
     const InspectionReportModal = () => {
       if (!showInspectionReport || !selectedLocation?.inspection) return null;
       return (
@@ -960,7 +1241,11 @@ const FuelIntegrityApp = () => {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
               <h3 className="font-bold text-lg">Fixed Location Test Report</h3>
-              <button onClick={() => setShowInspectionReport(false)} className="text-gray-500 hover:text-gray-700"><X className="w-6 h-6" /></button>
+              <div className="flex items-center gap-2">
+                <button onClick={handlePrintReport} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition" title="Print Report"><Printer className="w-4 h-4" />Print</button>
+                <button onClick={generateInspectionPDF} className="flex items-center gap-1 text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition" title="Download PDF"><Download className="w-4 h-4" />PDF</button>
+                <button onClick={() => setShowInspectionReport(false)} className="text-gray-500 hover:text-gray-700"><X className="w-6 h-6" /></button>
+              </div>
             </div>
             <div className="p-4">
               <div className="bg-white p-6 rounded border text-left space-y-3">
@@ -973,6 +1258,37 @@ const FuelIntegrityApp = () => {
                   <div><p className="text-xs text-gray-600">Operator</p><p className="font-semibold">{selectedLocation.company}</p></div>
                   <div><p className="text-xs text-gray-600">Inspection Date</p><p className="font-semibold">{selectedLocation.inspection.lastDate}</p></div>
                   <div><p className="text-xs text-gray-600">Result</p><p className={`font-bold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-600' : 'text-red-600'}`}>{selectedLocation.inspection.result}</p></div>
+                </div>
+                {/* Detailed Test Results Table */}
+                <div className="mt-4">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Test Results</h4>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Test Parameter</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Standard</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Measured</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { param: 'Fuel Marker Presence', standard: 'Detected', measured: selectedLocation.inspection.result === 'PASS' ? 'Detected' : 'Not Detected' },
+                        { param: 'Marker Concentration', standard: '12-18 ppm', measured: selectedLocation.inspection.result === 'PASS' ? '15.2 ppm' : '8.1 ppm' },
+                        { param: 'Density (kg/m\u00b3)', standard: '820-860', measured: selectedLocation.inspection.result === 'PASS' ? '835.6' : '812.3' },
+                        { param: 'Water Content (%)', standard: '< 0.05', measured: selectedLocation.inspection.result === 'PASS' ? '0.02' : '0.08' },
+                        { param: 'Sulphur Content (ppm)', standard: '< 50', measured: selectedLocation.inspection.result === 'PASS' ? '32' : '67' },
+                        { param: 'Visual Clarity', standard: 'Clear', measured: selectedLocation.inspection.result === 'PASS' ? 'Clear' : 'Hazy' },
+                      ].map(test => (
+                        <tr key={test.param}>
+                          <td className="p-2 border border-gray-200">{test.param}</td>
+                          <td className="p-2 border border-gray-200">{test.standard}</td>
+                          <td className="p-2 border border-gray-200">{test.measured}</td>
+                          <td className={`p-2 border border-gray-200 font-bold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-600' : 'text-red-600'}`}>{selectedLocation.inspection.result}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div className={`${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'} border-l-4 p-4 mt-4`}>
                   <p className={`font-semibold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-800' : 'text-red-800'}`}>Compliance Status: {selectedLocation.inspection.result}</p>
@@ -1015,6 +1331,33 @@ const FuelIntegrityApp = () => {
                     <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">Coordinates</p><p className="font-semibold text-gray-800 font-mono text-sm">{selectedLocation.coordinates}</p></div></div>
                   </div>
                 </div>
+                {/* Map */}
+                {selectedLocation.coordinates && (() => {
+                  const [lat, lng] = selectedLocation.coordinates.split(',').map((c: string) => c.trim());
+                  return (
+                    <div className="border-t pt-6">
+                      <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3"><MapPin className="w-5 h-5 text-green-600" />Location Map</h3>
+                      <div className="rounded-lg overflow-hidden border border-gray-200" style={{ height: 300 }}>
+                        <iframe
+                          title={`Map of ${selectedLocation.name}`}
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          loading="lazy"
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(lng)-0.01},${Number(lat)-0.01},${Number(lng)+0.01},${Number(lat)+0.01}&layer=mapnik&marker=${lat},${lng}`}
+                        />
+                      </div>
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline mt-1 inline-block"
+                      >
+                        View larger map
+                      </a>
+                    </div>
+                  );
+                })()}
                 {!selectedLocation.id.startsWith('DEP') && (
                   <div className="border-t pt-6"><h3 className="font-semibold text-gray-800 mb-2">Supply Depot</h3><div className="bg-gray-50 p-3 rounded"><p className="text-sm text-gray-600">{depots.find(d => d.id === selectedLocation.depot)?.name || 'N/A'}</p></div></div>
                 )}
@@ -1052,11 +1395,14 @@ const FuelIntegrityApp = () => {
             </div>
             <div className="space-y-3">
               {viewType === 'depots' ? depots.map(d => (
-                <div key={d.id} onClick={() => setSelectedLocation(d)} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer">
+                <div key={d.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
                   <div className="flex items-start gap-3">
                     <Building2 className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-800 mb-1">{d.name}</h3>
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-semibold text-gray-800">{d.name}</h3>
+                        <button onClick={() => setSelectedLocation(d)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition flex-shrink-0" title="View Details"><ChevronRight className="w-5 h-5" /></button>
+                      </div>
                       <p className="text-sm text-gray-600 mb-2">{d.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{d.location}</span></div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -1068,17 +1414,20 @@ const FuelIntegrityApp = () => {
                   </div>
                 </div>
               )) : gasStations.map(s => (
-                <div key={s.id} onClick={() => setSelectedLocation(s)} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer">
+                <div key={s.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
                   <div className="flex items-start gap-3">
                     <Store className="w-8 h-8 text-green-600 flex-shrink-0 mt-1" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="font-semibold text-gray-800">{s.name}</h3>
-                        {s.inspection ? (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.inspection.result === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.inspection.result}</span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">No Inspection</span>
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {s.inspection ? (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.inspection.result === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.inspection.result}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">No Inspection</span>
+                          )}
+                          <button onClick={() => setSelectedLocation(s)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><ChevronRight className="w-5 h-5" /></button>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{s.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{s.location}</span></div>

@@ -12,6 +12,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^4.1.0",
     "lucide-react": "^0.263.1",
     "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
