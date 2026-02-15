@@ -17,6 +17,11 @@ const FuelIntegrityApp = () => {
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [showInspectionReport, setShowInspectionReport] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
+  const [licensePlateInput, setLicensePlateInput] = useState('');
+  const [licensePlateLoading, setLicensePlateLoading] = useState(false);
+  const [transitLoadRegistration, setTransitLoadRegistration] = useState<any>(null);
+  const [transitLoadConfirmed, setTransitLoadConfirmed] = useState(false);
+  const [licensePlateError, setLicensePlateError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -192,6 +197,35 @@ const FuelIntegrityApp = () => {
 
   const handleConfirmDelivery = () => {
     setDeliveryConfirmed(true);
+  };
+
+  const handleLicensePlateLookup = () => {
+    const plate = licensePlateInput.trim().toUpperCase();
+    if (!plate) return;
+    setLicensePlateError(null);
+    setLicensePlateLoading(true);
+    // Simulate network lookup delay
+    setTimeout(() => {
+      const matchedTxn = transactions.find(t =>
+        t.vehicle.replace(/\s+/g, '').toUpperCase() === plate.replace(/\s+/g, '').toUpperCase()
+      );
+      setLicensePlateLoading(false);
+      if (matchedTxn) {
+        setTransitLoadRegistration({ transaction: matchedTxn, lookedUpAt: new Date().toISOString() });
+      } else {
+        setLicensePlateError(`No consignment found for vehicle "${plate}". Please verify the license plate number and try again.`);
+      }
+    }, 1500);
+  };
+
+  const handleConfirmTransitLoad = () => {
+    setTransitLoadConfirmed(true);
+  };
+
+  const handleCloseTransitLoad = () => {
+    setTransitLoadRegistration(null);
+    setTransitLoadConfirmed(false);
+    setLicensePlateInput('');
   };
 
   const handleLogin = (role: string) => {
@@ -539,12 +573,190 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── TRANSIT LOAD REGISTRATION MODAL (License Plate) ──
+  const TransitLoadRegistrationModal = () => {
+    if (!transitLoadRegistration) return null;
+    const txn = transitLoadRegistration.transaction;
+    const lookupTime = new Date(transitLoadRegistration.lookedUpAt);
+
+    if (transitLoadConfirmed) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={handleCloseTransitLoad}>
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-6 rounded-t-lg text-center">
+              <CheckCircle className="w-16 h-16 mx-auto mb-3" />
+              <h3 className="font-bold text-xl">Transit Load Registered</h3>
+              <p className="text-green-100 mt-1">Consignment {txn.id} departure confirmed</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-gray-500">Transaction ID</p><p className="font-semibold text-gray-800">{txn.id}</p></div>
+                  <div><p className="text-xs text-gray-500">Status</p><p className="font-semibold text-green-700">Departure Confirmed</p></div>
+                  <div><p className="text-xs text-gray-500">Volume</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                  <div><p className="text-xs text-gray-500">Product</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                  <div><p className="text-xs text-gray-500">Vehicle</p><p className="font-semibold text-gray-800">{txn.vehicle}</p></div>
+                  <div><p className="text-xs text-gray-500">Driver</p><p className="font-semibold text-gray-800">{txn.driver}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Route</p><p className="font-semibold text-gray-800">{txn.from} → {txn.to}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Confirmed At</p><p className="font-semibold text-gray-800">{lookupTime.toLocaleString()}</p></div>
+                </div>
+              </div>
+              <button onClick={handleCloseTransitLoad} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Done</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={handleCloseTransitLoad}>
+        <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+          <div className="sticky top-0 bg-gradient-to-r from-green-700 to-green-600 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">Loading Details</h3>
+                <p className="text-green-100 text-sm">{txn.id} — Transit Load</p>
+              </div>
+              <button onClick={handleCloseTransitLoad} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            {/* Match notification */}
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+              <Truck className="w-5 h-5 text-green-600" />
+              <span className="font-semibold text-sm text-green-800">Vehicle {txn.vehicle} — Consignment Found</span>
+            </div>
+
+            {/* Transfer Route */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 text-center">
+                  <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Source Depot</p>
+                  <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
+                </div>
+                <div className="text-green-600 font-bold text-lg">→</div>
+                <div className="flex-1 text-center">
+                  <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Destination</p>
+                  <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Consignment Details */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Consignment Details</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
+              </div>
+            </div>
+
+            {/* Transport Details */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transport Details</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
+                <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
+              </div>
+            </div>
+
+            {/* Seal & Marker */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal & Marker Details</h4>
+              <div className="space-y-3">
+                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500">Loading Seal</p>
+                  <p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p>
+                </div>
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Batch</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Timing */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Schedule</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Loading Date</span><span className="font-semibold text-gray-800">{txn.date} {txn.time}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Expected Delivery</span><span className="font-semibold text-gray-800">{txn.expectedDelivery}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Approved By</span><span className="font-semibold text-gray-800">{txn.approvedBy}</span></div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleConfirmTransitLoad} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
+                <ClipboardCheck className="w-5 h-5" />Confirm Departure
+              </button>
+              <button onClick={handleCloseTransitLoad} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── SCT ──
   const SCTView = () => (
     <div className="p-4 space-y-4">
       <SCTLoadingDetailModal />
       <DeliveryRegistrationModal />
+      <TransitLoadRegistrationModal />
       <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
+
+      {/* License Plate Transit Load Lookup */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />Register Transit Load</h3>
+        <p className="text-sm text-gray-500 mb-3">Enter the truck license plate number to look up and register a transit load consignment.</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={licensePlateInput}
+            onChange={e => setLicensePlateInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleLicensePlateLookup(); }}
+            placeholder="e.g. KCA 123A"
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent uppercase"
+            disabled={licensePlateLoading}
+          />
+          <button
+            onClick={handleLicensePlateLookup}
+            disabled={licensePlateLoading || !licensePlateInput.trim()}
+            className="bg-green-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Scan className="w-5 h-5" />
+            Search
+          </button>
+        </div>
+        {licensePlateLoading && (
+          <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-semibold text-blue-800">Loading Consignment ...</span>
+          </div>
+        )}
+        {licensePlateError && (
+          <div className="mt-3 flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-700">{licensePlateError}</p>
+              <button onClick={() => setLicensePlateError(null)} className="mt-1 text-xs text-red-600 hover:text-red-800 underline">Dismiss</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => startCameraScanner('loading')} className="bg-green-600 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-green-700 transition"><Scan className="w-8 h-8" /><span className="font-semibold text-sm">Scan Loading QR</span></button>
         <button onClick={() => startCameraScanner('delivery')} className="bg-yellow-500 text-white p-4 rounded-lg flex flex-col items-center gap-2 hover:bg-yellow-600 transition"><Camera className="w-8 h-8" /><span className="font-semibold text-sm">Scan Delivery QR</span></button>
