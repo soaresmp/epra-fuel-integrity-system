@@ -369,7 +369,7 @@ const FuelIntegrityApp = () => {
               <p className="text-xs text-gray-500">{appSettings.footerText}</p>
               <p className="text-xs text-gray-500 mt-1">{appSettings.subFooterText}</p>
             </div>
-            <p className="text-xs text-gray-400">{process.env.REACT_APP_GIT_BRANCH || 'local'}</p>
+            <p className="text-xs text-gray-400">build #{process.env.REACT_APP_GIT_HASH || '0000000'}</p>
           </div>
         </div>
       </div>
@@ -1335,7 +1335,15 @@ const FuelIntegrityApp = () => {
               </div>
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Current Stock</p><p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p></div>
+                  <div className="bg-blue-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Current Stock</p><p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p>
+                    {(() => { const sd = stockData.find(s => s.location === selectedLocation.name); return sd ? (
+                      <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
+                        <div className="flex justify-between text-xs"><span className="text-gray-600">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-gray-600">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-gray-600">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
+                      </div>
+                    ) : null; })()}
+                  </div>
                   <div className="bg-green-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Capacity</p><p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p></div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-blue-600 h-3 rounded-full" style={{ width: `${(selectedLocation.current / selectedLocation.capacity) * 100}%` }} /></div>
@@ -1427,6 +1435,13 @@ const FuelIntegrityApp = () => {
                         <div><span className="text-gray-600">Stock: </span><span className="font-semibold">{d.current.toLocaleString()} L</span></div>
                         <div><span className="text-gray-600">Capacity: </span><span className="font-semibold">{d.capacity.toLocaleString()} L</span></div>
                       </div>
+                      {(() => { const sd = stockData.find(s => s.location === d.name); return sd ? (
+                        <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
+                          <div className="bg-yellow-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
+                          <div className="bg-orange-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
+                          <div className="bg-purple-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
+                        </div>
+                      ) : null; })()}
                       <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${(d.current / d.capacity) * 100}%` }} /></div>
                     </div>
                   </div>
@@ -1450,12 +1465,19 @@ const FuelIntegrityApp = () => {
                       <p className="text-sm text-gray-600 mb-2">{s.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{s.location}</span></div>
                       {s.inspection && (
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><FileText className="w-3 h-3" /><span>Last inspection: {s.inspection.lastDate}</span></div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><FileText className="w-3 h-3" /><span>Last inspection: {s.inspection.lastDate}</span><span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-bold ${s.inspection.result === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.inspection.result}</span></div>
                       )}
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div><span className="text-gray-600">Stock: </span><span className="font-semibold">{s.current.toLocaleString()} L</span></div>
                         <div><span className="text-gray-600">Capacity: </span><span className="font-semibold">{s.capacity.toLocaleString()} L</span></div>
                       </div>
+                      {(() => { const sd = stockData.find(st => st.location === s.name); return sd ? (
+                        <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
+                          <div className="bg-yellow-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
+                          <div className="bg-orange-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
+                          <div className="bg-purple-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
+                        </div>
+                      ) : null; })()}
                       <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div className="bg-green-600 h-1.5 rounded-full" style={{ width: `${(s.current / s.capacity) * 100}%` }} /></div>
                     </div>
                   </div>
@@ -2322,7 +2344,7 @@ const FuelIntegrityApp = () => {
     <div className={`fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuOpen(false)}>
       <div className={`fixed right-0 top-0 bottom-0 w-64 bg-white shadow-xl transform transition-transform ${menuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={e => e.stopPropagation()}>
         <div className="p-4 bg-gradient-to-r from-green-700 to-green-600 text-white">
-          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Main Menu</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
+          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Options</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
           <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
