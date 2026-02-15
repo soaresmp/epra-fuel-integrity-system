@@ -363,9 +363,14 @@ const FuelIntegrityApp = () => {
           <button onClick={() => handleLogin('station_operator')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Login as Station Operator</button>
           <button disabled className="w-full bg-gray-400 text-white py-3 rounded-lg font-semibold cursor-not-allowed opacity-60">Login as Inspector</button>
         </div>
-        <div className="mt-6 pt-6 border-t text-center">
-          <p className="text-xs text-gray-500">{appSettings.footerText}</p>
-          <p className="text-xs text-gray-500 mt-1">{appSettings.subFooterText}</p>
+        <div className="mt-6 pt-6 border-t">
+          <div className="flex items-center justify-between">
+            <div className="text-left">
+              <p className="text-xs text-gray-500">{appSettings.footerText}</p>
+              <p className="text-xs text-gray-500 mt-1">{appSettings.subFooterText}</p>
+            </div>
+            <p className="text-xs text-gray-400">v0.1.0</p>
+          </div>
         </div>
       </div>
     </div>
