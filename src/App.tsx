@@ -792,6 +792,7 @@ const FuelIntegrityApp = () => {
             placeholder="e.g. KCA 123A"
             className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent uppercase"
             disabled={licensePlateLoading}
+            autoFocus
           />
           <button
             onClick={handleLicensePlateLookup}
