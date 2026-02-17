@@ -2,7 +2,7 @@
   "name": "epra-fuel-integrity-system",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://soaresmp.github.io/epra-fuel-integrity-system",
+  //"homepage": "https://soaresmp.github.io/epra-fuel-integrity-system",
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
