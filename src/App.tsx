@@ -6,6 +6,164 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { jsPDF } from 'jspdf';
 import CargoTrackingView from './CargoTracking';
 
+// ─── SCT / CARGO-TRACKING SHARED FLEET DATA ──────────────────────────────────
+// These constants mirror CargoTracking.tsx exactly so every SCT transaction maps
+// 1-to-1 to the truck being monitored (same index → same plate, driver, etc.).
+const FLEET_PLATES = [
+  'KCA 123A','KBZ 456B','KCD 789C','KAA 234D','KCB 567E','KBY 890F','KBA 123G','KCC 456H',
+  'KDA 789I','KDB 012J','KDC 345K','KDD 678L','KDE 901M','KDF 234N','KDG 567P','KDH 890Q',
+  'KEA 123R','KEB 456S','KEC 789T','KED 012U','KEE 345V','KEF 678W','KEG 901X','KEH 234Y',
+  'KFA 567Z','KFB 890A','KFC 123B','KFD 456C','KFE 789D','KFF 012E','KFG 345F','KFH 678G',
+  'KGA 901H','KGB 234I','KGC 567J','KGD 890K','KGE 123L','KGF 456M','KGG 789N','KGH 012P',
+  'KHA 345Q','KHB 678R','KHC 901S','KHD 234T','KHE 567U','KHF 890V','KHG 123W','KHH 456X',
+  'KIA 789Y','KIB 012Z',
+];
+const FLEET_DRIVERS = [
+  'Joseph Kimani','Ahmed Ali','Samuel Korir','Paul Njoroge','Tom Ochieng','John Mutua','Hassan Omar',
+  'David Cheruiyot','Peter Kariuki','Mary Wanjiru','James Odhiambo','Anne Muthoni','Ali Hassan',
+  'Fatuma Mohamed','Michael Omondi','Lucy Achieng','Daniel Kiptoo','Ruth Chebet','Simon Kamau',
+  'Elizabeth Wambui','Patrick Njenga','Jane Njeri','Francis Mwiti','Grace Otieno','David Kiplagat',
+  'Sarah Kimani','John Mwangi','Moses Waweru','Catherine Maina','George Otieno','Susan Wanjiku',
+  'Robert Mwangi','Alice Njeri','Charles Omondi','Dorothy Achieng','Emmanuel Cheruiyot','Faith Korir',
+  'Geoffrey Mutua','Hannah Omar','Isaac Ochieng','Janet Kimani','Kevin Ali','Lilian Njoroge',
+  'Martin Korir','Nancy Mutua','Oscar Kariuki','Patricia Wanjiru','Quincy Odhiambo','Rachel Muthoni',
+  'Stephen Hassan',
+];
+const FLEET_TRANSPORTERS = [
+  'KenTrans Logistics Ltd','Coast Fuel Carriers','Rift Valley Transporters','SafeHaul Kenya Ltd',
+  'Lake Basin Logistics','Nairobi Bulk Carriers','EPRA Certified Hauliers','Peak Fuel Transport',
+];
+// Driver license numbers — deterministic per driver index
+const FLEET_LICENSES = FLEET_DRIVERS.map((_, i) =>
+  `DL-${2021 + (i % 3)}-${String(100000 + (i * 12345) % 900000).padStart(6, '0')}`
+);
+
+// [depotShort, destinationShort, routeKey, fuelType, volumeL] — identical order to CargoTracking
+const FLEET_DEFS: [string, string, string, string, number][] = [
+  ['Nairobi West','Total Westlands','nbi_karen','Gasoline',5000],
+  ['Nairobi West','Shell Uhuru Highway','nbi_karen','Diesel',6000],
+  ['Nairobi West','Rubis Kilimani','nbi_karen','Gasoline',4000],
+  ['Nairobi West','Engen Karen','nbi_karen','Diesel',4500],
+  ['Nairobi West','Total Nakuru','nbi_nak','Diesel',5500],
+  ['Nairobi West','Total Nakuru','nbi_nak','Gasoline',5000],
+  ['Nairobi West','Shell Thika Road','nbi_thk','Diesel',4000],
+  ['Nairobi West','Shell Thika Road','nbi_thk','Gasoline',3500],
+  ['Nairobi West','Total Meru','nbi_mru','Diesel',4500],
+  ['Nairobi West','Total Meru','nbi_mru','Diesel',5000],
+  ['Nairobi West','Shell Uganda Road','nbi_eld','Diesel',5500],
+  ['Nairobi West','Shell Uganda Road','nbi_eld','Gasoline',5000],
+  ['Nairobi West','Rubis Oginga Odinga','nbi_ksu','Diesel',4500],
+  ['Nairobi West','Rubis Oginga Odinga','nbi_ksu','Gasoline',4000],
+  ['Nairobi West','Total Milimani','nbi_ksu','Diesel',5000],
+  ['Nairobi West','Total Milimani','nbi_ksu','Kerosene',3000],
+  ['Nairobi West','Total Westlands','nbi_karen','Diesel',5500],
+  ['Nairobi West','Engen Karen','nbi_karen','Gasoline',4000],
+  ['Nairobi West','Total Nakuru','nbi_nak','Kerosene',3500],
+  ['Nairobi West','Engen Rupa Mall','nbi_eld','Diesel',4500],
+  ['Kipevu (Mombasa)','Total Nyali','msa_nbi','Diesel',5200],
+  ['Kipevu (Mombasa)','Shell Moi Avenue','msa_nbi','Gasoline',6000],
+  ['Kipevu (Mombasa)','Total Nyali','msa_nbi','Kerosene',3000],
+  ['Kipevu (Mombasa)','Shell Moi Avenue','msa_nbi','Diesel',5500],
+  ['Kipevu (Mombasa)','Total Westlands','msa_nbi','Gasoline',5000],
+  ['Kipevu (Mombasa)','Shell Uhuru Highway','msa_nbi','Diesel',5500],
+  ['Kipevu (Mombasa)','Rubis Kilimani','msa_nbi','Gasoline',4500],
+  ['Kipevu (Mombasa)','Shell Thika Road','msa_nbi','Diesel',5000],
+  ['Kipevu (Mombasa)','Total Nakuru','msa_nbi','Gasoline',4500],
+  ['Kipevu (Mombasa)','Total Meru','msa_nbi','Diesel',5000],
+  ['Eldoret','Shell Uganda Road','eld_ksu','Diesel',4000],
+  ['Eldoret','Engen Rupa Mall','eld_ksu','Gasoline',4000],
+  ['Eldoret','Rubis Oginga Odinga','eld_ksu','Diesel',4500],
+  ['Eldoret','Total Milimani','eld_ksu','Gasoline',4000],
+  ['Eldoret','Shell Uganda Road','eld_ksu','Kerosene',3000],
+  ['Eldoret','Total Nakuru','nku_eld','Diesel',5000],
+  ['Eldoret','Total Nakuru','nku_eld','Gasoline',4500],
+  ['Eldoret','Shell Thika Road','nbi_eld','Diesel',4000],
+  ['Kisumu','Rubis Oginga Odinga','eld_ksu','Diesel',3500],
+  ['Kisumu','Total Milimani','eld_ksu','Gasoline',3500],
+  ['Kisumu','Rubis Oginga Odinga','eld_ksu','Kerosene',2500],
+  ['Kisumu','Shell Uganda Road','eld_ksu','Diesel',4000],
+  ['Kisumu','Engen Rupa Mall','eld_ksu','Gasoline',3500],
+  ['Kisumu','Total Nakuru','nbi_nyk','Diesel',4500],
+  ['Kisumu','Shell Uhuru Highway','nbi_nyk','Gasoline',4000],
+  ['Nairobi West','Shell Uhuru Highway','nbi_karen','Kerosene',3000],
+  ['Nairobi West','Total Westlands','nbi_thk','Diesel',5000],
+  ['Kipevu (Mombasa)','Engen Rupa Mall','msa_nbi','Gasoline',5000],
+  ['Nairobi West','Total Milimani','nbi_ksu','Gasoline',4500],
+  ['Eldoret','Total Meru','nbi_eld','Diesel',5000],
+];
+
+const DEPOT_META: Record<string, { fullName: string; gps: string; approver: string }> = {
+  'Nairobi West':     { fullName: 'Nairobi West Depot',           gps: '-1.3207, 36.8074', approver: 'Sarah Kimani'   },
+  'Kipevu (Mombasa)':{ fullName: 'Kipevu Oil Storage Facility',  gps: '-4.0435, 39.6682', approver: 'John Mwangi'    },
+  'Eldoret':          { fullName: 'Eldoret Depot',                 gps: '0.5143, 35.2698',  approver: 'David Kiplagat' },
+  'Kisumu':           { fullName: 'Kisumu Depot',                  gps: '-0.0917, 34.7680', approver: 'Grace Otieno'   },
+};
+
+// Approximate ETA offsets by route (hours)
+const ROUTE_ETA: Record<string, number> = {
+  nbi_karen: 2, nbi_thk: 3, nbi_nak: 4, nbi_mru: 5,
+  nku_eld: 3,   eld_ksu: 4, nbi_eld: 6, nbi_ksu: 7,
+  msa_nbi: 9,   nbi_nyk: 8,
+};
+
+// Trucks where CargoTracking generates alerts (i%7===0 || i%13===0)
+const ALERT_INDICES = new Set([0,7,13,14,21,26,28,35,39,42,49]);
+// Trucks with unauthorised stop (i%11===0)
+const STOP_INDICES  = new Set([0,11,22,33,44]);
+
+function generateSCTTransactions() {
+  return FLEET_DEFS.map(([depotShort, destination, routeKey, fuelType, volume], i) => {
+    const depot   = DEPOT_META[depotShort];
+    const forced  = ALERT_INDICES.has(i) || STOP_INDICES.has(i);
+    const status  = forced || i % 2 === 1 ? 'in-transit' : 'completed';
+    const date    = status === 'completed'
+      ? (i % 3 === 0 ? '2026-02-08' : '2026-02-09')
+      : '2026-02-10';
+    const hour    = 6 + (i * 7) % 10;
+    const min     = (i * 13) % 60;
+    const etaH    = (hour + (ROUTE_ETA[routeKey] ?? 4)) % 24;
+    const fmtTime = (h: number, m: number) =>
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    // Sensor readings consistent with cargo tracking baseline
+    const baseTemp    = fuelType === 'Diesel' ? 28 + (i % 8) : fuelType === 'Gasoline' ? 26 + (i % 6) : 25 + (i % 5);
+    const tempDec     = (i * 3) % 10;
+    const baseDensity = fuelType === 'Diesel' ? 830 + (i % 10) : fuelType === 'Gasoline' ? 740 + (i % 10) : 790 + (i % 8);
+    const densDec     = (i * 2) % 10;
+    const compartment = volume >= 5500 ? 'C1, C2, C3' : volume >= 4000 ? 'C1, C2' : 'C1';
+    const markerConc  = (14.5 + (i * 0.11) % 1.5).toFixed(1);
+    const dateCompact = date.replace(/-/g, '');
+    return {
+      id:                  `TXN-${String(i + 1).padStart(3,'0')}`,
+      truckId:             `TRK-${String(i + 1).padStart(3,'0')}`,
+      from:                depot.fullName,
+      to:                  destination,
+      vehicle:             FLEET_PLATES[i],
+      status,
+      volume,
+      type:                fuelType,
+      date,
+      time:                fmtTime(hour, min),
+      driver:              FLEET_DRIVERS[i],
+      driverLicense:       FLEET_LICENSES[i],
+      transporter:         FLEET_TRANSPORTERS[i % FLEET_TRANSPORTERS.length],
+      loadingBay:          `Bay ${(i % 3) + 1}`,
+      compartment,
+      sealNumberLoading:   `SL-${dateCompact}-${String(i + 1).padStart(3,'0')}`,
+      sealNumberDelivery:  `SD-${dateCompact}-${String(i + 1).padStart(3,'0')}`,
+      markerType:          'EPRA Molecular Marker',
+      markerConcentration: `${markerConc} ppm`,
+      markerBatchNo:       `MBN-2026-${String(87 + i).padStart(4,'0')}`,
+      temperature:         `${baseTemp}.${tempDec}°C`,
+      density:             `${baseDensity}.${densDec} kg/m³`,
+      loadingTicket:       `LT-2026-${String(341 + i).padStart(5,'0')}`,
+      expectedDelivery:    `${date} ${fmtTime(etaH, min)}`,
+      gpsLoading:          depot.gps,
+      approvedBy:          depot.approver,
+    };
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
   const [currentView, setCurrentView] = useState('login');
@@ -79,16 +237,7 @@ const FuelIntegrityApp = () => {
     { id: 'STN-015', name: 'Engen Meru', location: 'Meru Town', company: 'Engen Kenya', capacity: 33000, current: 28000, contact: 'Francis Mwiti', phone: '+254 734 555666', email: 'meru@engen.co.ke', depot: 'DEP-002', coordinates: '0.0469, 37.6497', inspection: { lastDate: '20/12/2022', result: 'PASS', footage: 'https://www.youtube.com/watch?v=43q_b26iWPE' } }
   ]);
 
-  const [transactions, setTransactions] = useState([
-    { id: 'TXN-001', from: 'Nairobi West Depot', to: 'Total Westlands', vehicle: 'KCA 123A', status: 'in-transit', volume: 5000, type: 'Diesel', date: '2026-02-10', time: '08:30', driver: 'Joseph Kimani', driverLicense: 'DL-2023-045891', transporter: 'KenTrans Logistics Ltd', loadingBay: 'Bay 3', compartment: 'C1, C2', sealNumberLoading: 'SL-20260210-001', sealNumberDelivery: 'SD-20260210-001', markerType: 'EPRA Molecular Marker', markerConcentration: '15.2 ppm', markerBatchNo: 'MBN-2026-0087', temperature: '28.4°C', density: '835.6 kg/m³', loadingTicket: 'LT-2026-00341', expectedDelivery: '2026-02-10 12:30', gpsLoading: '-1.3207, 36.8074', approvedBy: 'Sarah Kimani' },
-    { id: 'TXN-002', from: 'Kipevu Oil Storage Facility', to: 'Shell Moi Avenue', vehicle: 'KBZ 456B', status: 'completed', volume: 6000, type: 'Gasoline', date: '2026-02-10', time: '09:15', driver: 'Ahmed Ali', driverLicense: 'DL-2022-032567', transporter: 'Coast Fuel Carriers', loadingBay: 'Bay 1', compartment: 'C1, C2, C3', sealNumberLoading: 'SL-20260210-002', sealNumberDelivery: 'SD-20260210-002', markerType: 'EPRA Molecular Marker', markerConcentration: '14.8 ppm', markerBatchNo: 'MBN-2026-0088', temperature: '31.2°C', density: '748.3 kg/m³', loadingTicket: 'LT-2026-00342', expectedDelivery: '2026-02-10 13:15', gpsLoading: '-4.0435, 39.6682', approvedBy: 'John Mwangi' },
-    { id: 'TXN-003', from: 'Eldoret Depot', to: 'Shell Uganda Road', vehicle: 'KCD 789C', status: 'completed', volume: 4500, type: 'Diesel', date: '2026-02-10', time: '10:00', driver: 'Samuel Korir', driverLicense: 'DL-2021-078234', transporter: 'Rift Valley Transporters', loadingBay: 'Bay 2', compartment: 'C1, C2', sealNumberLoading: 'SL-20260210-003', sealNumberDelivery: 'SD-20260210-003', markerType: 'EPRA Molecular Marker', markerConcentration: '15.0 ppm', markerBatchNo: 'MBN-2026-0089', temperature: '22.1°C', density: '836.1 kg/m³', loadingTicket: 'LT-2026-00343', expectedDelivery: '2026-02-10 14:00', gpsLoading: '0.5143, 35.2698', approvedBy: 'David Kiplagat' },
-    { id: 'TXN-004', from: 'Nairobi West Depot', to: 'Rubis Kilimani', vehicle: 'KAA 234D', status: 'in-transit', volume: 4000, type: 'Gasoline', date: '2026-02-10', time: '11:20', driver: 'Paul Njoroge', driverLicense: 'DL-2023-056789', transporter: 'SafeHaul Kenya Ltd', loadingBay: 'Bay 1', compartment: 'C1', sealNumberLoading: 'SL-20260210-004', sealNumberDelivery: 'SD-20260210-004', markerType: 'EPRA Molecular Marker', markerConcentration: '14.9 ppm', markerBatchNo: 'MBN-2026-0090', temperature: '27.8°C', density: '749.1 kg/m³', loadingTicket: 'LT-2026-00344', expectedDelivery: '2026-02-10 13:20', gpsLoading: '-1.3207, 36.8074', approvedBy: 'Sarah Kimani' },
-    { id: 'TXN-005', from: 'Kisumu Depot', to: 'Rubis Oginga Odinga', vehicle: 'KCB 567E', status: 'completed', volume: 3500, type: 'Diesel', date: '2026-02-10', time: '12:45', driver: 'Tom Ochieng', driverLicense: 'DL-2022-089012', transporter: 'Lake Basin Logistics', loadingBay: 'Bay 1', compartment: 'C1, C2', sealNumberLoading: 'SL-20260210-005', sealNumberDelivery: 'SD-20260210-005', markerType: 'EPRA Molecular Marker', markerConcentration: '15.1 ppm', markerBatchNo: 'MBN-2026-0091', temperature: '29.5°C', density: '835.9 kg/m³', loadingTicket: 'LT-2026-00345', expectedDelivery: '2026-02-10 15:45', gpsLoading: '-0.0917, 34.7680', approvedBy: 'Grace Otieno' },
-    { id: 'TXN-006', from: 'Nairobi West Depot', to: 'Shell Uhuru Highway', vehicle: 'KBY 890F', status: 'completed', volume: 5500, type: 'Gasoline', date: '2026-02-09', time: '14:30', driver: 'John Mutua', driverLicense: 'DL-2021-034567', transporter: 'KenTrans Logistics Ltd', loadingBay: 'Bay 2', compartment: 'C1, C2, C3', sealNumberLoading: 'SL-20260209-006', sealNumberDelivery: 'SD-20260209-006', markerType: 'EPRA Molecular Marker', markerConcentration: '15.3 ppm', markerBatchNo: 'MBN-2026-0086', temperature: '26.9°C', density: '748.7 kg/m³', loadingTicket: 'LT-2026-00340', expectedDelivery: '2026-02-09 17:30', gpsLoading: '-1.3207, 36.8074', approvedBy: 'Sarah Kimani' },
-    { id: 'TXN-007', from: 'Kipevu Oil Storage Facility', to: 'Total Nyali', vehicle: 'KBA 123G', status: 'completed', volume: 5200, type: 'Diesel', date: '2026-02-09', time: '15:15', driver: 'Hassan Omar', driverLicense: 'DL-2023-012345', transporter: 'Coast Fuel Carriers', loadingBay: 'Bay 2', compartment: 'C1, C2', sealNumberLoading: 'SL-20260209-007', sealNumberDelivery: 'SD-20260209-007', markerType: 'EPRA Molecular Marker', markerConcentration: '14.7 ppm', markerBatchNo: 'MBN-2026-0085', temperature: '32.0°C', density: '836.4 kg/m³', loadingTicket: 'LT-2026-00339', expectedDelivery: '2026-02-09 18:15', gpsLoading: '-4.0435, 39.6682', approvedBy: 'John Mwangi' },
-    { id: 'TXN-008', from: 'Eldoret Depot', to: 'Engen Rupa Mall', vehicle: 'KCC 456H', status: 'completed', volume: 4000, type: 'Gasoline', date: '2026-02-09', time: '16:00', driver: 'David Cheruiyot', driverLicense: 'DL-2022-067890', transporter: 'Rift Valley Transporters', loadingBay: 'Bay 1', compartment: 'C1, C2', sealNumberLoading: 'SL-20260209-008', sealNumberDelivery: 'SD-20260209-008', markerType: 'EPRA Molecular Marker', markerConcentration: '15.0 ppm', markerBatchNo: 'MBN-2026-0084', temperature: '21.5°C', density: '749.5 kg/m³', loadingTicket: 'LT-2026-00338', expectedDelivery: '2026-02-09 19:00', gpsLoading: '0.5143, 35.2698', approvedBy: 'David Kiplagat' }
-  ]);
+  const [transactions, setTransactions] = useState(generateSCTTransactions);
 
   const [stockData] = useState([
     { location: 'Kipevu Oil Storage Facility', opening: 450000, current: 385000, capacity: 450000, variance: 0.08, receipts: 120000, withdrawals: 185000, losses: 150, company: 'Kenya Pipeline Company', diesel: 185000, gasoline: 135000, kerosene: 65000 },
@@ -450,7 +599,18 @@ const FuelIntegrityApp = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-lg">Consignment Detail</h3>
-                <p className="text-green-100 text-sm">{txn.id}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-green-100 text-sm">{txn.id}</p>
+                  {(txn as any).truckId && (
+                    <button
+                      onClick={() => { setSelectedTransaction(null); setCurrentView('tracking'); }}
+                      className="text-xs bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 py-0.5 rounded-full font-semibold flex items-center gap-1 transition"
+                      title="View on live tracking map"
+                    >
+                      <Navigation className="w-3 h-3" />{(txn as any).truckId} · Live Map
+                    </button>
+                  )}
+                </div>
               </div>
               <button onClick={() => setSelectedTransaction(null)} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
             </div>
@@ -547,7 +707,18 @@ const FuelIntegrityApp = () => {
                 {/* Transport Details */}
                 <div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                    {(txn as any).truckId && (
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-sm text-gray-600">Tracking Unit</span>
+                        <button
+                          onClick={() => { setSelectedTransaction(null); setCurrentView('tracking'); }}
+                          className="font-semibold text-sm font-mono text-blue-700 hover:text-blue-900 flex items-center gap-1"
+                        >
+                          <Navigation className="w-3 h-3" />{(txn as any).truckId}
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle / Plate</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
                     <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
                     <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
@@ -896,6 +1067,94 @@ const FuelIntegrityApp = () => {
   };
 
   // ── SCT ──
+  // ── CONSIGNMENT LIST (searchable, full 50-truck roster) ──────────────────
+  const ConsignmentList = () => {
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const visible = transactions.filter(t => {
+      const q = search.toLowerCase();
+      const matchQ = !q ||
+        t.vehicle.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q) ||
+        t.driver.toLowerCase().includes(q) ||
+        t.to.toLowerCase().includes(q) ||
+        (t as any).truckId?.toLowerCase().includes(q);
+      const matchS = statusFilter === 'all' || t.status === statusFilter;
+      return matchQ && matchS;
+    });
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-800">Consignments</h3>
+            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold">{transactions.length}</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search plate, driver, ID…"
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 w-44"
+            />
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-green-500"
+            >
+              <option value="all">All Status</option>
+              <option value="in-transit">In-Transit</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+        {visible.length === 0 && (
+          <div className="p-6 text-center text-gray-400 text-sm">No consignments match your search.</div>
+        )}
+        {visible.map(txn => (
+          <div
+            key={txn.id}
+            className="p-4 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 transition"
+            onClick={() => setSelectedTransaction(txn)}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-gray-800 text-sm">{txn.id}</span>
+                {(txn as any).truckId && (
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono">{(txn as any).truckId}</span>
+                )}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                  {txn.status}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded ${txn.type === 'Diesel' ? 'bg-blue-50 text-blue-700' : txn.type === 'Gasoline' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
+                  {txn.type}
+                </span>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); setSelectedTransaction(txn); }}
+                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition"
+                title="View Details"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-1 text-xs text-gray-600">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{txn.from} → {txn.to}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><Truck className="w-3 h-3" />{txn.vehicle}</span>
+                <span className="flex items-center gap-1"><Activity className="w-3 h-3" />{txn.volume.toLocaleString()} L</span>
+                <span className="text-gray-400">{txn.driver}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const SCTView = () => (
     <div className="p-4 space-y-4">
       <SCTLoadingDetailModal />
@@ -1007,24 +1266,7 @@ const FuelIntegrityApp = () => {
           </div>
         </div>
       )}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-4 border-b"><h3 className="font-semibold text-gray-800">Consignments</h3></div>
-        {transactions.slice(0, 5).map(txn => (
-          <div key={txn.id} className="p-4 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 transition" onClick={() => setSelectedTransaction(txn)}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-800">{txn.id}</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
-              </div>
-              <button onClick={(e) => { e.stopPropagation(); setSelectedTransaction(txn); }} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="View Details"><Eye className="w-5 h-5" /></button>
-            </div>
-            <div className="space-y-1 text-sm text-gray-600">
-              <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{txn.from} → {txn.to}</span></div>
-              <div className="flex items-center gap-2"><Truck className="w-4 h-4" /><span>{txn.vehicle} | {txn.volume}L {txn.type}</span></div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <ConsignmentList />
     </div>
   );
 
