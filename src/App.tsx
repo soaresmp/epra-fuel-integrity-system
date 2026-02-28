@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download, Navigation } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
+import CargoTrackingView from './CargoTracking';
 
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
@@ -42,10 +43,10 @@ const FuelIntegrityApp = () => {
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      admin: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-      operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-      station_operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
-      inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true },
+      admin: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true, tracking: true },
+      operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true, tracking: true },
+      station_operator: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true, tracking: true },
+      inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true, tracking: true },
     };
   });
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -902,6 +903,20 @@ const FuelIntegrityApp = () => {
       <TransitLoadRegistrationModal />
       <ScanDeliveryConfirmModal />
       <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
+      {/* Cargo Tracking shortcut */}
+      <button
+        onClick={() => setCurrentView('tracking')}
+        className="w-full flex items-center gap-3 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl p-4 shadow hover:from-green-800 hover:to-green-700 transition"
+      >
+        <Navigation className="w-6 h-6 flex-shrink-0" />
+        <div className="text-left">
+          <div className="font-bold text-sm">Cargo Tracking &amp; Monitoring</div>
+          <div className="text-xs text-green-100">Live map · 50+ trucks · Sensor telemetry · Integrity alerts</div>
+        </div>
+        <span className="ml-auto text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />LIVE
+        </span>
+      </button>
 
       {/* License Plate Consignment Lookup */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -2322,6 +2337,7 @@ const FuelIntegrityApp = () => {
     const allNavItems = [
       { view: 'dashboard', icon: Home, label: 'Home' },
       { view: 'sct', icon: Truck, label: 'SCT' },
+      { view: 'tracking', icon: Navigation, label: 'Tracking' },
       { view: 'wsm', icon: Package, label: 'WSM' },
       { view: 'incidents', icon: AlertCircle, label: 'Alerts' },
       { view: 'reports', icon: BarChart3, label: 'Reports' },
@@ -2347,6 +2363,7 @@ const FuelIntegrityApp = () => {
           <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Options</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
+          <button onClick={() => { setCurrentView('tracking'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Navigation className="w-5 h-5 text-green-600" /><span>Cargo Tracking</span></button>
           <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
           <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
           <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>Logout</span></button>
@@ -2403,6 +2420,7 @@ const FuelIntegrityApp = () => {
 
       {currentView === 'dashboard' && hasAccess('dashboard') && <DashboardView />}
       {currentView === 'sct' && hasAccess('sct') && <SCTView />}
+      {currentView === 'tracking' && hasAccess('tracking') && <CargoTrackingView />}
       {currentView === 'wsm' && hasAccess('wsm') && <DirectoryView />}
       {currentView === 'incidents' && hasAccess('incidents') && <IncidentsView />}
       {currentView === 'reports' && hasAccess('reports') && <ReportsView />}
