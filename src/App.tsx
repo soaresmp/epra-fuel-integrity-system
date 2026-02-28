@@ -576,7 +576,15 @@ const FuelIntegrityApp = () => {
         </div>
       </div>
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3">Recent Transactions</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800">Recent Transactions</h3>
+          <button
+            onClick={() => setCurrentView('sct')}
+            className="text-xs text-green-600 hover:text-green-800 font-semibold flex items-center gap-1"
+          >
+            View all {transactions.length} →
+          </button>
+        </div>
         {transactions.slice(0, 3).map(txn => (
           <div key={txn.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
             <div><p className="font-medium text-gray-800">{txn.id}</p><p className="text-sm text-gray-600">{txn.from} → {txn.to}</p></div>
