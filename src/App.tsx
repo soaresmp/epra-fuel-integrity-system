@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download, Navigation } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download, Navigation, Flame, Tag } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
 import CargoTrackingView from './CargoTracking';
@@ -164,6 +164,122 @@ function generateSCTTransactions() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── LPG CYLINDER DATA ───────────────────────────────────────────────────────
+const LPG_BRANDS = ['Total Gas', 'K-Gas', 'ProGas', 'Hashi Energy', 'Oryx Gas', 'Rubis LPG', 'Ven Gas'] as const;
+const LPG_FILLING_PLANTS = [
+  { id: 'FPL-001', name: 'KPRL Mombasa Bottling Plant',    city: 'Changamwe, Mombasa' },
+  { id: 'FPL-002', name: 'Total Gas Nairobi Filling Plant', city: 'Industrial Area, Nairobi' },
+  { id: 'FPL-003', name: 'Rubis LPG Eldoret Depot',        city: 'Eldoret Industrial' },
+  { id: 'FPL-004', name: 'Hashi Energy Kisumu Plant',      city: 'Kisumu Port' },
+  { id: 'FPL-005', name: 'ProGas Nairobi South Plant',     city: 'South B, Nairobi' },
+];
+const LPG_SIZES = [
+  { kg: 6,    label: '6 kg',    tare: 5.0,  max: 11.0, wc: 13.4, wp: 17.5, tp: 30 },
+  { kg: 13,   label: '13 kg',   tare: 8.2,  max: 21.2, wc: 28.9, wp: 17.5, tp: 30 },
+  { kg: 22.5, label: '22.5 kg', tare: 12.5, max: 35.0, wc: 50.0, wp: 17.5, tp: 30 },
+  { kg: 50,   label: '50 kg',   tare: 26.0, max: 76.0, wc: 111.0,wp: 17.5, tp: 30 },
+];
+const LPG_VALVE_TYPES = ['POL Valve (KGV-S)', 'POL Valve (KGV-L)', 'CGA-510 Valve', 'BS 341-3 Valve'];
+const LPG_COUNTRIES   = ['Kenya', 'India', 'China', 'Turkey', 'South Africa'];
+
+function generateLpgInventories(stations: { id: string; name: string; location: string }[]) {
+  return stations.map((stn, si) => {
+    const cylinders: any[] = [];
+    let seed = si * 31337 + 7;
+    const next = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 4294967296; };
+    const fmt2 = (n: number) => String(n).padStart(2, '0');
+
+    LPG_SIZES.forEach((sz, szi) => {
+      const count = [28, 42, 18, 8][szi] + Math.floor(next() * 10);
+      for (let c = 0; c < count; c++) {
+        const brand     = LPG_BRANDS[Math.floor(next() * LPG_BRANDS.length)];
+        const plant     = LPG_FILLING_PLANTS[Math.floor(next() * LPG_FILLING_PLANTS.length)];
+        const valveType = LPG_VALVE_TYPES[Math.floor(next() * LPG_VALVE_TYPES.length)];
+        const country   = LPG_COUNTRIES[Math.floor(next() * LPG_COUNTRIES.length)];
+        const statusR   = next();
+        const status    = statusR < 0.60 ? 'full' : statusR < 0.85 ? 'empty' : 'in-use';
+        const mfgYear   = 2018 + Math.floor(next() * 7);
+        const mfgMonth  = 1 + Math.floor(next() * 12);
+        const fillDay   = 1 + Math.floor(next() * 25);
+        const fillMon   = 1 + Math.floor(next() * 2);   // Jan or Feb 2026
+        const fillHH    = 6  + Math.floor(next() * 10);
+        const fillMM    = Math.floor(next() * 60);
+        const dispHH    = 14 + Math.floor(next() * 5);
+        const dispMM    = Math.floor(next() * 60);
+        const recvHH    = 7  + Math.floor(next() * 8);
+        const recvMM    = Math.floor(next() * 60);
+
+        const sizeCode    = sz.kg === 22.5 ? '225' : String(sz.kg).padStart(2, '0');
+        const rfid        = `RFID-KE-${fmt2(si+1)}-${sizeCode}-${String(c+1).padStart(4,'0')}`;
+        const serial      = `CYL-${brand.substring(0,2).toUpperCase()}-${mfgYear}-${String(si*1000+szi*200+c+1).padStart(5,'0')}`;
+        const valveSerial = `VLV-${fmt2(si+1)}${szi+1}-${String(c+1).padStart(4,'0')}`;
+        const opId        = (pfx: string) => `${pfx}${String(Math.floor(next()*99)+1).padStart(3,'0')}`;
+
+        const fillSeal = `FS-${plant.id}-${fmt2(fillMon)}2026-${String(c+1).padStart(4,'0')}`;
+        const dispSeal = `DS-TRK${String(Math.floor(next()*50)+1).padStart(3,'0')}-${fmt2(fillDay)}${fmt2(fillMon)}26`;
+        const recvSeal = `RS-${stn.id}-${fmt2(fillDay+1)}${fmt2(fillMon)}2026-${String(c+1).padStart(3,'0')}`;
+
+        const stampChain: any[] = [
+          {
+            seq: 1, type: 'fill',
+            date: `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`, time: `${fmt2(fillHH)}:${fmt2(fillMM)}`,
+            location: plant.name, locationId: plant.id, operatorId: opId('OPR-'),
+            stampCode: fillSeal, integrity: 'verified',
+            details: `Gas type: LPG (60% Butane / 40% Propane). Filling pressure: ${sz.wp} bar. Gross mass: ${sz.max} kg.`,
+          },
+          {
+            seq: 2, type: 'dispatch',
+            date: `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`, time: `${fmt2(dispHH)}:${fmt2(dispMM)}`,
+            location: plant.city, locationId: plant.id, operatorId: opId('DRV-'),
+            stampCode: dispSeal, integrity: 'verified',
+            details: `Dispatched to ${stn.name}, ${stn.location}. Tamper-evident seal applied at dispatch gate.`,
+          },
+          {
+            seq: 3, type: 'receive',
+            date: `${fmt2(fillDay+1)}/${fmt2(fillMon)}/2026`, time: `${fmt2(recvHH)}:${fmt2(recvMM)}`,
+            location: stn.name, locationId: stn.id, operatorId: opId('ATT-'),
+            stampCode: recvSeal, integrity: 'intact',
+            details: `Seal integrity check PASSED. ${sz.label} cylinder checked into stock at ${stn.name}.`,
+          },
+        ];
+        if (next() > 0.70) {
+          const inspSeal = `IS-EPRA-${String(Math.floor(next()*9000)+1000).padStart(4,'0')}-26`;
+          stampChain.push({
+            seq: 4, type: 'inspect',
+            date: `${fmt2(fillDay+2)}/${fmt2(fillMon)}/2026`, time: `${fmt2(9+Math.floor(next()*4))}:${fmt2(Math.floor(next()*60))}`,
+            location: stn.name, locationId: stn.id,
+            operatorId: `EPRA-INS-${String(Math.floor(next()*20)+1).padStart(3,'0')}`,
+            stampCode: inspSeal, integrity: 'verified',
+            details: 'EPRA routine spot-check. Tare weight verified. Valve condition: OK. Certificate valid.',
+          });
+        }
+        cylinders.push({
+          rfid, serial, brand, sizeKg: sz.kg, sizeLabel: sz.label,
+          tareWeight: sz.tare, maxGrossWeight: sz.max, waterCapacity: sz.wc,
+          workingPressure: sz.wp, testPressure: sz.tp,
+          valveType, valveSerial, countryOfManufacture: country,
+          manufactureDate: `${fmt2(mfgMonth)}/${mfgYear}`,
+          nextTestDate:    `${fmt2(mfgMonth)}/${mfgYear + 5}`,
+          lastFillDate:    `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`,
+          fillingPlant: plant.name, fillingPlantId: plant.id,
+          status,
+          currentSealCode: stampChain[stampChain.length - 1].stampCode,
+          sealIntegrity: status === 'in-use' ? 'tampered' : 'intact',
+          stampChain, stationId: stn.id,
+        });
+      }
+    });
+
+    const summary: Record<number, { total: number; full: number; empty: number; inUse: number }> = {};
+    LPG_SIZES.forEach(sz => {
+      const s = cylinders.filter(c => c.sizeKg === sz.kg);
+      summary[sz.kg] = { total: s.length, full: s.filter(c => c.status === 'full').length, empty: s.filter(c => c.status === 'empty').length, inUse: s.filter(c => c.status === 'in-use').length };
+    });
+    return { stationId: stn.id, cylinders, summary, lastAudit: `${String(8+si).padStart(2,'0')}/02/2026`, totalCylinders: cylinders.length };
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
   const [currentView, setCurrentView] = useState('login');
@@ -236,6 +352,10 @@ const FuelIntegrityApp = () => {
     { id: 'STN-014', name: 'Total Blue Post', location: 'Thika Town', company: 'Total Energies Kenya', capacity: 35000, current: 30000, contact: 'Jane Njeri', phone: '+254 733 444555', email: 'bluepost@totalenergies.co.ke', depot: 'DEP-002', coordinates: '-1.0369, 37.0903' },
     { id: 'STN-015', name: 'Engen Meru', location: 'Meru Town', company: 'Engen Kenya', capacity: 33000, current: 28000, contact: 'Francis Mwiti', phone: '+254 734 555666', email: 'meru@engen.co.ke', depot: 'DEP-002', coordinates: '0.0469, 37.6497', inspection: { lastDate: '20/12/2022', result: 'PASS', footage: 'https://www.youtube.com/watch?v=43q_b26iWPE' } }
   ]);
+
+  const [lpgInventories] = useState(() => generateLpgInventories(gasStations));
+  const [selectedCylinder, setSelectedCylinder] = useState<any>(null);
+  const [lpgSizeFilter, setLpgSizeFilter] = useState<number | null>(null);
 
   const [transactions, setTransactions] = useState(generateSCTTransactions);
 
@@ -1309,6 +1429,132 @@ const FuelIntegrityApp = () => {
     </div>
   );
 
+  // ── LPG CYLINDER MODAL ──
+  const LpgCylinderModal = () => {
+    if (!selectedCylinder) return null;
+    const cyl = selectedCylinder;
+    const stampStyle: Record<string, string> = {
+      fill:     'bg-orange-100 text-orange-800',
+      dispatch: 'bg-blue-100 text-blue-800',
+      receive:  'bg-green-100 text-green-800',
+      inspect:  'bg-purple-100 text-purple-800',
+    };
+    const stampLabel: Record<string, string> = {
+      fill: 'Filling Plant', dispatch: 'Dispatch Gate', receive: 'Station Receipt', inspect: 'EPRA Inspection',
+    };
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCylinder(null)}>
+        <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-amber-500 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5" />
+                  <span className="font-bold text-lg">LPG Cylinder</span>
+                  <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-sm font-mono">{cyl.sizeLabel}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <Tag className="w-3 h-3 text-orange-200" />
+                  <span className="text-orange-100 text-xs font-mono">{cyl.rfid}</span>
+                </div>
+              </div>
+              <button onClick={() => setSelectedCylinder(null)} className="text-white hover:text-orange-200"><X className="w-6 h-6" /></button>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-sm font-bold">{cyl.brand}</span>
+              <span className="text-orange-200 text-xs">·</span>
+              <span className="text-xs text-orange-100 font-mono">{cyl.serial}</span>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-5">
+            {/* Status row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`px-3 py-1 rounded-full text-sm font-bold ${cyl.status === 'full' ? 'bg-green-100 text-green-800' : cyl.status === 'empty' ? 'bg-gray-100 text-gray-700' : 'bg-orange-100 text-orange-800'}`}>
+                {cyl.status.toUpperCase()}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${cyl.sealIntegrity === 'intact' ? 'bg-green-50 text-green-700 border-green-200' : cyl.sealIntegrity === 'verified' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                <Shield className="w-3 h-3 inline mr-1" />Seal: {cyl.sealIntegrity.toUpperCase()}
+              </span>
+            </div>
+
+            {/* KEBS / EPRA Registration */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />KEBS / EPRA Registration (KS EAS 214)</p>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
+                {([
+                  ['Brand Owner',            cyl.brand],
+                  ['Cylinder Serial No.',    cyl.serial],
+                  ['Nominal Fill Weight',    `${cyl.sizeKg} kg`],
+                  ['Tare Weight (TW)',       `${cyl.tareWeight} kg`],
+                  ['Max Gross Weight',       `${cyl.maxGrossWeight} kg`],
+                  ['Water Capacity (WC)',    `${cyl.waterCapacity} L`],
+                  ['Working Pressure',       `${cyl.workingPressure} bar`],
+                  ['Test Pressure',          `${cyl.testPressure} bar`],
+                  ['Gas Type',               'LPG (Butane / Propane Mix)'],
+                  ['Country of Manufacture', cyl.countryOfManufacture],
+                  ['Date of Manufacture',    cyl.manufactureDate],
+                  ['Next Requalification',   cyl.nextTestDate],
+                ] as [string, string][]).map(([lbl, val]) => (
+                  <div key={lbl} className="flex justify-between gap-2">
+                    <span className="text-gray-500 flex-shrink-0">{lbl}</span>
+                    <span className="font-semibold text-gray-800 text-right">{val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* RFID Tag & Valve Seal */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><Tag className="w-3.5 h-3.5" />RFID Tag &amp; Valve Seal</p>
+              <div className="bg-blue-50 rounded-lg p-3 space-y-1.5 text-sm">
+                {([
+                  ['RFID Tag ID',       cyl.rfid],
+                  ['Valve Type',        cyl.valveType],
+                  ['Valve Serial No.',  cyl.valveSerial],
+                  ['Filling Plant',     cyl.fillingPlant],
+                  ['Last Fill Date',    cyl.lastFillDate],
+                  ['Active Seal Code',  cyl.currentSealCode],
+                ] as [string, string][]).map(([lbl, val]) => (
+                  <div key={lbl} className="flex justify-between gap-2">
+                    <span className="text-gray-500 flex-shrink-0">{lbl}</span>
+                    <span className="font-semibold text-gray-800 text-right font-mono text-xs break-all">{val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Multi-level Secure Stamp Chain */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Multi-Level Secure Stamp Chain</p>
+              <div className="space-y-0">
+                {cyl.stampChain.map((ev: any, idx: number) => (
+                  <div key={ev.seq} className="flex gap-3">
+                    <div className="flex flex-col items-center flex-shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{ev.seq}</div>
+                      {idx < cyl.stampChain.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 my-1" style={{ minHeight: '1.5rem' }} />}
+                    </div>
+                    <div className="pb-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stampStyle[ev.type] || 'bg-gray-100 text-gray-600'}`}>{stampLabel[ev.type] || ev.type}</span>
+                        <span className={`text-xs font-semibold ${ev.integrity === 'verified' ? 'text-blue-600' : ev.integrity === 'intact' ? 'text-green-600' : 'text-red-600'}`}>● {ev.integrity.toUpperCase()}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-gray-700">{ev.location}</p>
+                      <p className="text-xs text-gray-500">{ev.date} at {ev.time} · {ev.operatorId}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{ev.details}</p>
+                      <p className="text-xs font-mono text-gray-400 mt-0.5 break-all">{ev.stampCode}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── DIRECTORY ──
   const DirectoryView = () => {
     const [viewType, setViewType] = useState('depots');
@@ -1652,6 +1898,83 @@ const FuelIntegrityApp = () => {
                 {!selectedLocation.id.startsWith('DEP') && (
                   <div className="border-t pt-6"><h3 className="font-semibold text-gray-800 mb-2">Supply Depot</h3><div className="bg-gray-50 p-3 rounded"><p className="text-sm text-gray-600">{depots.find(d => d.id === selectedLocation.depot)?.name || 'N/A'}</p></div></div>
                 )}
+                {/* ── LPG CYLINDERS SECTION ── */}
+                {!selectedLocation.id.startsWith('DEP') && (() => {
+                  const inv = lpgInventories.find(i => i.stationId === selectedLocation.id);
+                  if (!inv) return null;
+                  const visibleCyls = lpgSizeFilter ? inv.cylinders.filter(c => c.sizeKg === lpgSizeFilter) : inv.cylinders;
+                  return (
+                    <div className="border-t pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Flame className="w-5 h-5 text-orange-500" />LPG Cylinder Stock</h3>
+                        <span className="text-xs text-gray-500">Last audit: {inv.lastAudit}</span>
+                      </div>
+                      {/* Summary by size */}
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        {LPG_SIZES.map(sz => {
+                          const s = inv.summary[sz.kg];
+                          return (
+                            <button key={sz.kg} onClick={() => setLpgSizeFilter(lpgSizeFilter === sz.kg ? null : sz.kg)}
+                              className={`p-3 rounded-lg border-2 text-left transition ${lpgSizeFilter === sz.kg ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-gray-50 hover:border-orange-300'}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-gray-800 text-sm">{sz.label}</span>
+                                <span className="text-lg font-black text-orange-600">{s.total}</span>
+                              </div>
+                              <div className="flex gap-2 text-xs mb-1.5">
+                                <span className="text-green-700 font-semibold">{s.full} full</span>
+                                <span className="text-gray-400">·</span>
+                                <span className="text-gray-500">{s.empty} empty</span>
+                                {s.inUse > 0 && <><span className="text-gray-400">·</span><span className="text-orange-600">{s.inUse} in-use</span></>}
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${s.total > 0 ? (s.full / s.total) * 100 : 0}%` }} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Filter label */}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-gray-600">
+                          {lpgSizeFilter ? `${lpgSizeFilter} kg cylinders` : 'All cylinders'} — {visibleCyls.length} shown
+                        </p>
+                        {lpgSizeFilter && (
+                          <button onClick={() => setLpgSizeFilter(null)} className="text-xs text-orange-600 hover:underline">Show all</button>
+                        )}
+                      </div>
+                      {/* Cylinder list */}
+                      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                        {visibleCyls.map(cyl => (
+                          <button key={cyl.rfid} onClick={() => setSelectedCylinder(cyl)}
+                            className="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-orange-400 hover:bg-orange-50 transition text-left">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                              <Flame className="w-4 h-4 text-orange-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs text-gray-500">{cyl.rfid}</span>
+                                <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{cyl.sizeLabel}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs font-semibold text-gray-700">{cyl.brand}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-mono text-xs text-gray-400 truncate">{cyl.serial}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cyl.status === 'full' ? 'bg-green-100 text-green-700' : cyl.status === 'empty' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
+                                {cyl.status}
+                              </span>
+                              <span className={`text-xs ${cyl.sealIntegrity === 'intact' ? 'text-green-600' : cyl.sealIntegrity === 'verified' ? 'text-blue-600' : 'text-red-600'}`}>
+                                ● {cyl.sealIntegrity}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {!selectedLocation.id.startsWith('DEP') && selectedLocation.inspection && (
                   <div className="border-t pt-6">
                     <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-green-600" />Inspection</h3>
@@ -1741,6 +2064,16 @@ const FuelIntegrityApp = () => {
                           <div className="bg-yellow-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
                           <div className="bg-orange-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
                           <div className="bg-purple-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
+                        </div>
+                      ) : null; })()}
+                      {(() => { const inv = lpgInventories.find(i => i.stationId === s.id); return inv ? (
+                        <div className="flex items-center gap-1.5 mt-2 px-2 py-1.5 bg-orange-50 rounded border border-orange-100">
+                          <Flame className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                          <span className="text-xs text-orange-700 font-semibold">LPG: {inv.totalCylinders} cylinders</span>
+                          <span className="text-gray-300 text-xs">·</span>
+                          {LPG_SIZES.map(sz => (
+                            <span key={sz.kg} className="text-xs text-gray-500">{sz.label}: <span className="font-semibold text-gray-700">{inv.summary[sz.kg]?.total ?? 0}</span></span>
+                          ))}
                         </div>
                       ) : null; })()}
                       <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div className="bg-green-600 h-1.5 rounded-full" style={{ width: `${(s.current / s.capacity) * 100}%` }} /></div>
@@ -2668,6 +3001,7 @@ const FuelIntegrityApp = () => {
         </div>
       )}
 
+      <LpgCylinderModal />
       {currentView === 'dashboard' && hasAccess('dashboard') && <DashboardView />}
       {currentView === 'sct' && hasAccess('sct') && <SCTView />}
       {currentView === 'tracking' && hasAccess('tracking') && <CargoTrackingView />}
