@@ -1,5 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Truck, MapPin, AlertTriangle, CheckCircle, Clock, Activity, Shield, Navigation, Thermometer, Droplets, BarChart3, Eye, X, RefreshCw, AlertCircle, Zap, TrendingDown, Filter, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Circle, Popup, ZoomControl, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Truck, MapPin, AlertTriangle, CheckCircle, Clock, Activity, Shield, Navigation, Thermometer, Droplets, BarChart3, X, AlertCircle, Layers } from 'lucide-react';
+
+// Fix leaflet default icon paths broken by webpack
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({ iconUrl: '', shadowUrl: '' });
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────
 interface Waypoint { lat: number; lon: number; }
@@ -46,23 +53,6 @@ interface TruckData {
   markerConc: number;
 }
 
-// ─── MAP PROJECTION ─────────────────────────────────────────────────────────
-const MAP = { minLon: 33.9, maxLon: 41.9, minLat: -4.7, maxLat: 4.6 };
-const W = 800, H = 600, PAD = 20;
-
-function toSvgX(lon: number) { return PAD + ((lon - MAP.minLon) / (MAP.maxLon - MAP.minLon)) * (W - PAD * 2); }
-function toSvgY(lat: number) { return PAD + ((MAP.maxLat - lat) / (MAP.maxLat - MAP.minLat)) * (H - PAD * 2); }
-
-// ─── KENYA OUTLINE ──────────────────────────────────────────────────────────
-const KENYA_POLY = [
-  [4.6, 34.9], [4.6, 36.0], [4.2, 37.5], [4.5, 38.5],
-  [4.4, 41.0], [3.5, 41.9], [1.6, 41.9], [0.5, 41.5],
-  [-0.5, 41.5], [-2.0, 41.5], [-4.1, 39.6],
-  [-4.7, 38.5], [-3.5, 37.0], [-1.8, 36.9],
-  [-1.0, 34.1], [0.0, 33.9], [0.9, 34.1],
-  [2.0, 34.0], [3.5, 34.1], [4.2, 34.5], [4.6, 34.9]
-].map(([lat, lon]) => `${toSvgX(lon)},${toSvgY(lat)}`).join(' ');
-
 // ─── ROUTES ─────────────────────────────────────────────────────────────────
 const ROUTES: Record<string, Waypoint[]> = {
   'msa_nbi': [
@@ -104,10 +94,6 @@ const ROUTES: Record<string, Waypoint[]> = {
   'nbi_karen': [
     { lat: -1.29, lon: 36.82 }, { lat: -1.3, lon: 36.75 }, { lat: -1.32, lon: 36.71 }
   ],
-  'msa_malindi': [
-    { lat: -4.05, lon: 39.67 }, { lat: -3.5, lon: 39.85 }, { lat: -3.23, lon: 40.12 },
-    { lat: -2.8, lon: 40.4 }, { lat: -3.22, lon: 40.12 }
-  ],
   'nbi_nyk': [
     { lat: -1.29, lon: 36.82 }, { lat: -0.55, lon: 36.35 }, { lat: -0.30, lon: 36.08 },
     { lat: -0.18, lon: 35.8 }, { lat: -0.09, lon: 34.77 }
@@ -116,10 +102,10 @@ const ROUTES: Record<string, Waypoint[]> = {
 
 // ─── DEPOTS & STATIONS ───────────────────────────────────────────────────────
 const DEPOTS = [
-  { id: 'DEP-001', name: 'Kipevu (Mombasa)', lat: -4.05, lon: 39.67, color: '#1d4ed8' },
-  { id: 'DEP-002', name: 'Nairobi West', lat: -1.29, lon: 36.82, color: '#15803d' },
-  { id: 'DEP-003', name: 'Eldoret', lat: 0.51, lon: 35.27, color: '#b45309' },
-  { id: 'DEP-004', name: 'Kisumu', lat: -0.09, lon: 34.77, color: '#7c3aed' },
+  { id: 'DEP-001', name: 'Kipevu (Mombasa)', lat: -4.05, lon: 39.67, color: '#3b82f6', geofenceKm: 5 },
+  { id: 'DEP-002', name: 'Nairobi West', lat: -1.29, lon: 36.82, color: '#22c55e', geofenceKm: 8 },
+  { id: 'DEP-003', name: 'Eldoret', lat: 0.51, lon: 35.27, color: '#f59e0b', geofenceKm: 5 },
+  { id: 'DEP-004', name: 'Kisumu', lat: -0.09, lon: 34.77, color: '#a855f7', geofenceKm: 5 },
 ];
 
 const STATIONS = [
@@ -137,6 +123,25 @@ const STATIONS = [
   { name: 'Shell Thika Rd', lat: -1.033, lon: 37.069 },
   { name: 'Total Meru', lat: 0.047, lon: 37.650 },
 ];
+
+// ─── TILE LAYERS ─────────────────────────────────────────────────────────────
+const TILE_LAYERS = {
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    label: 'Dark',
+  },
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    label: 'Light',
+  },
+  streets: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    label: 'Streets',
+  },
+};
 
 // ─── INTERPOLATION ───────────────────────────────────────────────────────────
 function interpolate(route: Waypoint[], progress: number): Waypoint {
@@ -180,7 +185,6 @@ function rng(seed: number) { return ((seed * 1664525 + 1013904223) & 0xffffffff)
 
 function generateTrucks(): TruckData[] {
   const truckRouteMap: [string, string, string, string, number][] = [
-    // [depot, destination, routeKey, fuelType, baseVol]
     ['Nairobi West', 'Total Westlands', 'nbi_karen', 'Gasoline', 5000],
     ['Nairobi West', 'Shell Uhuru Hwy', 'nbi_karen', 'Diesel', 6000],
     ['Nairobi West', 'Rubis Kilimani', 'nbi_karen', 'Gasoline', 4000],
@@ -242,16 +246,15 @@ function generateTrucks(): TruckData[] {
     const r4 = rng(seed + 3), r5 = rng(seed + 4);
 
     const route = ROUTES[routeKey] || ROUTES['nbi_nak'];
-    const progress = 0.05 + r1 * 0.85; // between 5% and 90% of journey
+    const progress = 0.05 + r1 * 0.85;
 
-    const isAlert = i % 7 === 0 || i % 13 === 0; // ~20% of trucks have alerts
+    const isAlert = i % 7 === 0 || i % 13 === 0;
     const baseTemp = fuelType === 'Diesel' ? 28 + r2 * 8 : 26 + r2 * 6;
     const baseDensity = fuelType === 'Diesel' ? 830 + r3 * 10 : 740 + r3 * 10;
-    // Temp-corrected volume: ~0.065% per °C for diesel, ~0.12% per °C for gasoline
-    const tempDelta = r4 * 6 - 1; // -1 to +5 degrees in transit
+    const tempDelta = r4 * 6 - 1;
     const thermalExpCoeff = fuelType === 'Diesel' ? 0.00065 : 0.0012;
     const legitimateVolChange = baseVol * thermalExpCoeff * tempDelta;
-    const illegalLoss = isAlert ? baseVol * (0.03 + r5 * 0.05) : 0; // 3-8% illegal offtake
+    const illegalLoss = isAlert ? baseVol * (0.03 + r5 * 0.05) : 0;
     const currentTemp = baseTemp + tempDelta;
     const currentDensity = baseDensity - (fuelType === 'Diesel' ? 0.6 : 0.8) * tempDelta;
     const currentVol = Math.round(baseVol + legitimateVolChange - illegalLoss);
@@ -293,7 +296,7 @@ function generateTrucks(): TruckData[] {
         id: `ALT-${String(i + 1).padStart(3, '0')}-S`,
         type: 'unauthorized_stop',
         severity: 'high',
-        message: `Truck stopped for 18 min outside approved dwell zone at -1.54°N, 37.02°E.`,
+        message: `Truck stopped 18 min outside approved dwell zone.`,
         timestamp: new Date(now.getTime() - Math.floor(r3 * 900000)).toLocaleTimeString(),
         acknowledged: false,
       });
@@ -334,17 +337,7 @@ function generateTrucks(): TruckData[] {
   });
 }
 
-// ─── ALERT BADGE ─────────────────────────────────────────────────────────────
-function AlertBadge({ count }: { count: number }) {
-  if (!count) return null;
-  return (
-    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
-      {count > 9 ? '9+' : count}
-    </span>
-  );
-}
-
-// ─── STATUS COLOR ─────────────────────────────────────────────────────────────
+// ─── STATUS HELPERS ───────────────────────────────────────────────────────────
 function statusColor(status: TruckData['status']) {
   switch (status) {
     case 'in-transit': return '#16a34a';
@@ -354,16 +347,126 @@ function statusColor(status: TruckData['status']) {
     default: return '#6b7280';
   }
 }
-
 function statusBadge(status: TruckData['status']) {
   const map: Record<string, string> = {
-    'in-transit': 'bg-green-100 text-green-800',
-    alert: 'bg-red-100 text-red-800',
-    delivered: 'bg-blue-100 text-blue-800',
-    loading: 'bg-yellow-100 text-yellow-800',
+    'in-transit': 'bg-green-100 text-green-800', alert: 'bg-red-100 text-red-800',
+    delivered: 'bg-blue-100 text-blue-800', loading: 'bg-yellow-100 text-yellow-800',
     idle: 'bg-gray-100 text-gray-700',
   };
   return map[status] || 'bg-gray-100 text-gray-700';
+}
+
+// ─── TRUCK ICON FACTORY ───────────────────────────────────────────────────────
+function createTruckIcon(truck: TruckData, selected: boolean) {
+  const col = statusColor(truck.status);
+  const size = selected ? 40 : 32;
+  const half = size / 2;
+  const pulse = truck.status === 'alert'
+    ? `<div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid #ef4444;animation:ctPulse 1.6s ease-out infinite;pointer-events:none;"></div>`
+    : '';
+  const ring = selected
+    ? `<div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid white;pointer-events:none;"></div>`
+    : '';
+  return L.divIcon({
+    html: `
+      <div style="position:relative;width:${size}px;height:${size}px;">
+        ${pulse}${ring}
+        <div style="
+          width:${size}px;height:${size}px;border-radius:50%;
+          background:${col};
+          border:${selected ? 3 : 2}px solid rgba(255,255,255,0.9);
+          box-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 0 1px ${col}55;
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;transition:transform 0.15s;
+        ">
+          <svg width="${size * 0.45}" height="${size * 0.45}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="7" width="14" height="10" rx="1.5" fill="white" fill-opacity="0.95"/>
+            <path d="M15 10h5l3 3.5V17h-8V10z" fill="white" fill-opacity="0.95"/>
+            <circle cx="5.5" cy="19" r="2" fill="white" fill-opacity="0.95"/>
+            <circle cx="18.5" cy="19" r="2" fill="white" fill-opacity="0.95"/>
+          </svg>
+        </div>
+      </div>`,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [half, half],
+    popupAnchor: [0, -(half + 6)],
+  });
+}
+
+function createDepotIcon(depot: typeof DEPOTS[0]) {
+  return L.divIcon({
+    html: `
+      <div style="
+        width:44px;height:44px;border-radius:10px;
+        background:${depot.color};
+        border:2px solid rgba(255,255,255,0.8);
+        box-shadow:0 3px 14px rgba(0,0,0,0.6);
+        display:flex;align-items:center;justify-content:center;
+        flex-direction:column;gap:1px;
+      ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="white" stroke-width="1.5" fill="none"/>
+          <polyline points="9 22 9 12 15 12 15 22" stroke="white" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>`,
+    className: '',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -28],
+  });
+}
+
+function createStationIcon() {
+  return L.divIcon({
+    html: `<div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+    className: '',
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  });
+}
+
+// ─── MAP CONTROLLER ───────────────────────────────────────────────────────────
+function MapFlyTo({ truck }: { truck: TruckData | null }) {
+  const map = useMap();
+  const lastId = useRef<string | null>(null);
+  useEffect(() => {
+    if (truck && truck.id !== lastId.current) {
+      lastId.current = truck.id;
+      map.flyTo([truck.currentLat, truck.currentLon], 12, { duration: 1.2, easeLinearity: 0.5 });
+    }
+  }, [truck, map]);
+  return null;
+}
+
+// ─── GLOBAL STYLE INJECTION ───────────────────────────────────────────────────
+function MapStyles() {
+  return (
+    <style>{`
+      @keyframes ctPulse {
+        0%   { transform: scale(1);   opacity: 0.9; }
+        70%  { transform: scale(2.4); opacity: 0;   }
+        100% { transform: scale(1);   opacity: 0;   }
+      }
+      .leaflet-popup-content-wrapper {
+        background: #0f172a !important;
+        color: #f1f5f9 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+        padding: 0 !important;
+      }
+      .leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+      .leaflet-popup-tip-container .leaflet-popup-tip { background: #0f172a !important; }
+      .leaflet-popup-close-button { color: #94a3b8 !important; top: 8px !important; right: 8px !important; font-size: 18px !important; }
+      .leaflet-control-zoom a {
+        background: #1e293b !important; color: #f1f5f9 !important;
+        border-color: #334155 !important;
+      }
+      .leaflet-control-zoom a:hover { background: #334155 !important; }
+      .leaflet-bar { border: none !important; box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important; border-radius: 10px !important; overflow: hidden; }
+    `}</style>
+  );
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
@@ -371,32 +474,27 @@ const CargoTrackingView = () => {
   const [trucks, setTrucks] = useState<TruckData[]>(() => generateTrucks());
   const [selectedTruck, setSelectedTruck] = useState<TruckData | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'list' | 'alerts' | 'reports'>('map');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterFuel, setFilterFuel] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterFuel, setFilterFuel] = useState('all');
+  const [tileStyle, setTileStyle] = useState<keyof typeof TILE_LAYERS>('dark');
+  const [showRoutes, setShowRoutes] = useState(true);
+  const [showGeofences, setShowGeofences] = useState(true);
   const [tick, setTick] = useState(0);
-  const intervalRef = useRef<any>(null);
 
-  // ── LIVE SIMULATION ──────────────────────────────────────────────────────
+  // ── LIVE SIMULATION ───────────────────────────────────────────────────────
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
+    const id = setInterval(() => {
       setTrucks(prev => prev.map(truck => {
         if (truck.status === 'delivered' || truck.status === 'loading') return truck;
-        const step = (0.001 + Math.random() * 0.002); // 0.1–0.3% per tick
+        const step = 0.001 + Math.random() * 0.002;
         const newProgress = Math.min(truck.routeProgress + step, 1.0);
         const newStatus: TruckData['status'] = newProgress >= 0.99 ? 'delivered' : truck.status;
         const pos = interpolate(truck.route, newProgress);
-
-        // Sensor fluctuations
         const tempFluc = (Math.random() - 0.5) * 0.4;
         const newTemp = Math.round((truck.currentTemp + tempFluc) * 10) / 10;
-        const densFluc = (Math.random() - 0.5) * 0.3;
-        const newDensity = Math.round((truck.currentDensity + densFluc) * 10) / 10;
-        // Volume natural thermal change
+        const newDensity = Math.round((truck.currentDensity + (Math.random() - 0.5) * 0.3) * 10) / 10;
         const thermalCoeff = truck.fuelType === 'Diesel' ? 0.00065 : 0.0012;
-        const volChange = Math.round(truck.currentVolume * thermalCoeff * tempFluc);
-        const newVolume = truck.currentVolume + volChange;
-        const volVariancePct = Math.round(Math.abs(newVolume - truck.baselineVolume) / truck.baselineVolume * 1000) / 10;
-
+        const newVol = truck.currentVolume + Math.round(truck.currentVolume * thermalCoeff * tempFluc);
         return {
           ...truck,
           routeProgress: newProgress,
@@ -405,135 +503,230 @@ const CargoTrackingView = () => {
           currentLon: pos.lon,
           currentTemp: newTemp,
           currentDensity: newDensity,
-          currentVolume: newVolume,
-          volumeVariancePct: volVariancePct,
+          currentVolume: newVol,
+          volumeVariancePct: Math.round(Math.abs(newVol - truck.baselineVolume) / truck.baselineVolume * 1000) / 10,
           speed: truck.dwellTime > 0 ? 0 : Math.round(55 + Math.random() * 45),
-          lastUpdate: new Date(),
         } as TruckData;
       }));
       setTick(t => t + 1);
     }, 3000);
-    return () => clearInterval(intervalRef.current);
+    return () => clearInterval(id);
   }, []);
 
   // ── COMPUTED ──────────────────────────────────────────────────────────────
   const allAlerts = trucks.flatMap(t => t.alerts.map(a => ({ ...a, truckId: t.id, plate: t.plate })));
   const unackedAlerts = allAlerts.filter(a => !a.acknowledged);
-  const countByStatus = {
+  const counts = {
     total: trucks.length,
     inTransit: trucks.filter(t => t.status === 'in-transit').length,
     alert: trucks.filter(t => t.status === 'alert').length,
     delivered: trucks.filter(t => t.status === 'delivered').length,
-    loading: trucks.filter(t => t.status === 'loading').length,
   };
 
-  const filtered = trucks.filter(t => {
-    const matchStatus = filterStatus === 'all' || t.status === filterStatus;
-    const matchFuel = filterFuel === 'all' || t.fuelType === filterFuel;
-    return matchStatus && matchFuel;
-  });
+  const filtered = trucks.filter(t =>
+    (filterStatus === 'all' || t.status === filterStatus) &&
+    (filterFuel === 'all' || t.fuelType === filterFuel)
+  );
 
   // ── MAP VIEW ──────────────────────────────────────────────────────────────
-  const MapView = () => (
-    <div className="bg-gray-900 rounded-xl overflow-hidden" style={{ height: 520 }}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
-        {/* Ocean grid */}
-        {Array.from({ length: 10 }).map((_, i) => (
-          <line key={`gh-${i}`} x1={0} y1={i * 60} x2={W} y2={i * 60} stroke="#1e3a5f" strokeWidth={0.5} opacity={0.4} />
-        ))}
-        {Array.from({ length: 14 }).map((_, i) => (
-          <line key={`gv-${i}`} x1={i * 60} y1={0} x2={i * 60} y2={H} stroke="#1e3a5f" strokeWidth={0.5} opacity={0.4} />
-        ))}
+  const MapView = () => {
+    const layer = TILE_LAYERS[tileStyle];
+    return (
+      <div className="relative rounded-xl overflow-hidden shadow-2xl border border-gray-700" style={{ height: 520 }}>
+        <MapStyles />
+        <MapContainer
+          center={[-1.0, 37.2]}
+          zoom={7}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
+          <TileLayer url={layer.url} attribution={layer.attribution} subdomains="abcd" maxZoom={19} />
+          <ZoomControl position="topright" />
+          <MapFlyTo truck={selectedTruck} />
 
-        {/* Kenya land */}
-        <polygon points={KENYA_POLY} fill="#166534" fillOpacity={0.3} stroke="#22c55e" strokeWidth={1.5} />
-
-        {/* Route lines */}
-        {Object.entries(ROUTES).map(([key, pts]) => (
-          <polyline
-            key={key}
-            points={pts.map(p => `${toSvgX(p.lon)},${toSvgY(p.lat)}`).join(' ')}
-            fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeOpacity={0.4} strokeDasharray="4 3"
-          />
-        ))}
-
-        {/* Depots */}
-        {DEPOTS.map(d => (
-          <g key={d.id}>
-            <circle cx={toSvgX(d.lon)} cy={toSvgY(d.lat)} r={14} fill={d.color} fillOpacity={0.25} stroke={d.color} strokeWidth={2} />
-            <circle cx={toSvgX(d.lon)} cy={toSvgY(d.lat)} r={7} fill={d.color} />
-            <text x={toSvgX(d.lon)} y={toSvgY(d.lat) - 18} textAnchor="middle" fill="white" fontSize={9} fontWeight="bold">{d.name}</text>
-          </g>
-        ))}
-
-        {/* Stations */}
-        {STATIONS.map(s => (
-          <circle key={s.name} cx={toSvgX(s.lon)} cy={toSvgY(s.lat)} r={4} fill="#f59e0b" stroke="#fbbf24" strokeWidth={1} opacity={0.8} />
-        ))}
-
-        {/* Trucks */}
-        {filtered.map(truck => {
-          const cx = toSvgX(truck.currentLon);
-          const cy = toSvgY(truck.currentLat);
-          const col = statusColor(truck.status);
-          const isSelected = selectedTruck?.id === truck.id;
-          return (
-            <g key={truck.id} onClick={() => setSelectedTruck(truck)} style={{ cursor: 'pointer' }}>
-              {isSelected && <circle cx={cx} cy={cy} r={18} fill={col} fillOpacity={0.2} stroke={col} strokeWidth={2} />}
-              {/* Pulse ring for alert trucks */}
-              {truck.status === 'alert' && (
-                <circle cx={cx} cy={cy} r={14} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0.6}>
-                  <animate attributeName="r" values="10;18;10" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
-                </circle>
-              )}
-              {/* Truck body */}
-              <rect x={cx - 7} y={cy - 5} width={14} height={10} rx={2} fill={col} />
-              <rect x={cx - 3} y={cy - 8} width={8} height={6} rx={1} fill={col} fillOpacity={0.8} />
-              {/* Wheels */}
-              <circle cx={cx - 4} cy={cy + 5} r={2} fill="#1f2937" />
-              <circle cx={cx + 4} cy={cy + 5} r={2} fill="#1f2937" />
-              {/* Truck ID on hover */}
-              {isSelected && (
-                <text x={cx} y={cy - 22} textAnchor="middle" fill="white" fontSize={8} fontWeight="bold">{truck.plate}</text>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Legend */}
-        <g>
-          <rect x={8} y={H - 95} width={160} height={88} rx={4} fill="#0f172a" fillOpacity={0.85} />
-          {[
-            { col: '#16a34a', label: 'In-Transit' },
-            { col: '#dc2626', label: 'Alert' },
-            { col: '#2563eb', label: 'Delivered' },
-            { col: '#d97706', label: 'Loading' },
-          ].map((item, i) => (
-            <g key={item.label}>
-              <circle cx={22} cy={H - 82 + i * 18} r={5} fill={item.col} />
-              <text x={34} y={H - 78 + i * 18} fill="white" fontSize={9}>{item.label}</text>
-            </g>
+          {/* Geofence zones */}
+          {showGeofences && DEPOTS.map(d => (
+            <Circle
+              key={d.id}
+              center={[d.lat, d.lon]}
+              radius={d.geofenceKm * 1000}
+              pathOptions={{ color: d.color, fillColor: d.color, fillOpacity: 0.07, weight: 1.5, dashArray: '6 4' }}
+            />
           ))}
-          <circle cx={22} cy={H - 82 + 4 * 18} r={3} fill="#f59e0b" />
-          <text x={34} y={H - 78 + 4 * 18} fill="white" fontSize={9}>Station</text>
-        </g>
+
+          {/* Approved route corridors */}
+          {showRoutes && Object.entries(ROUTES).map(([key, pts]) => (
+            <Polyline
+              key={key}
+              positions={pts.map(p => [p.lat, p.lon] as [number, number])}
+              pathOptions={{ color: '#fbbf24', weight: 2.5, opacity: 0.35, dashArray: '10 6' }}
+            />
+          ))}
+
+          {/* Station markers */}
+          {STATIONS.map(s => (
+            <Marker key={s.name} position={[s.lat, s.lon]} icon={createStationIcon()}>
+              <Popup>
+                <div style={{ padding: '8px 12px', minWidth: 120 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', marginBottom: 2 }}>STATION</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{s.name}</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+          {/* Depot markers */}
+          {DEPOTS.map(d => (
+            <Marker key={d.id} position={[d.lat, d.lon]} icon={createDepotIcon(d)}>
+              <Popup>
+                <div style={{ padding: '12px 14px', minWidth: 160 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: d.color, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Loading Depot</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>{d.name}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    {trucks.filter(t => t.depot === d.name && t.status !== 'delivered').length} trucks active
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+          {/* Truck markers */}
+          {filtered.map(truck => (
+            <Marker
+              key={`${truck.id}-${tick}`}
+              position={[truck.currentLat, truck.currentLon]}
+              icon={createTruckIcon(truck, selectedTruck?.id === truck.id)}
+              eventHandlers={{ click: () => setSelectedTruck(t => t?.id === truck.id ? null : truck) }}
+            >
+              <Popup>
+                <div style={{ padding: '14px', minWidth: 220, fontFamily: 'system-ui, sans-serif' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: statusColor(truck.status), flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9' }}>{truck.plate}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 10, background: statusColor(truck.status) + '33', color: statusColor(truck.status), padding: '2px 8px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase' }}>{truck.status}</span>
+                  </div>
+                  {/* Route */}
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
+                    <span style={{ color: '#94a3b8' }}>From</span> {truck.depot}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+                    <span style={{ color: '#94a3b8' }}>To</span> {truck.destination}
+                  </div>
+                  {/* Progress */}
+                  <div style={{ background: '#1e293b', borderRadius: 6, height: 5, marginBottom: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(truck.routeProgress * 100)}%`, height: '100%', background: statusColor(truck.status), borderRadius: 6 }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b', marginBottom: 10 }}>{Math.round(truck.routeProgress * 100)}% complete · ETA {truck.expectedDelivery}</div>
+                  {/* Sensors */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
+                    {[
+                      { label: 'Temp', value: `${truck.currentTemp}°C`, ok: Math.abs(truck.currentTemp - truck.baselineTemp) < 8 },
+                      { label: 'Density', value: `${truck.currentDensity}`, ok: truck.densityVariancePct < 1 },
+                      { label: 'Volume', value: `${(truck.currentVolume / 1000).toFixed(1)}kL`, ok: truck.volumeVariancePct < 1.5 },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: s.ok ? '#14532d33' : '#7f1d1d33', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: s.ok ? '#4ade80' : '#f87171' }}>{s.value}</div>
+                        <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Driver / speed */}
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>
+                    <span style={{ color: '#94a3b8' }}>Driver: </span>{truck.driver}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
+                    <span><span style={{ color: '#94a3b8' }}>Speed: </span>{truck.speed} km/h</span>
+                    <span><span style={{ color: '#94a3b8' }}>Fuel: </span>{truck.fuelType}</span>
+                  </div>
+                  {/* Alerts */}
+                  {truck.alerts.length > 0 && (
+                    <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8 }}>
+                      {truck.alerts.slice(0, 2).map(a => (
+                        <div key={a.id} style={{ fontSize: 10, color: a.severity === 'high' ? '#f87171' : '#fbbf24', marginBottom: 3 }}>
+                          ⚠ {a.message.slice(0, 70)}{a.message.length > 70 ? '…' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+
+        {/* Map overlay controls */}
+        <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-2">
+          {/* Tile switcher */}
+          <div className="bg-slate-900 bg-opacity-90 backdrop-blur-sm rounded-xl p-2 shadow-xl border border-slate-700">
+            <div className="flex items-center gap-1 mb-1.5">
+              <Layers className="w-3 h-3 text-slate-400" />
+              <span className="text-xs text-slate-400 font-semibold">Map Style</span>
+            </div>
+            <div className="flex gap-1">
+              {(Object.keys(TILE_LAYERS) as Array<keyof typeof TILE_LAYERS>).map(k => (
+                <button
+                  key={k}
+                  onClick={() => setTileStyle(k)}
+                  className={`text-xs px-2 py-1 rounded-lg font-semibold transition capitalize ${
+                    tileStyle === k ? 'bg-green-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  {TILE_LAYERS[k].label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Layer toggles */}
+          <div className="bg-slate-900 bg-opacity-90 backdrop-blur-sm rounded-xl p-2 shadow-xl border border-slate-700">
+            <div className="space-y-1.5">
+              {[
+                { label: 'Routes', value: showRoutes, toggle: () => setShowRoutes(v => !v) },
+                { label: 'Geofences', value: showGeofences, toggle: () => setShowGeofences(v => !v) },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.toggle}
+                  className={`flex items-center gap-2 w-full text-xs px-2 py-1 rounded-lg transition ${
+                    item.value ? 'text-green-400' : 'text-slate-500'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-sm border ${item.value ? 'bg-green-600 border-green-500' : 'border-slate-600'}`} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats overlay */}
+        <div className="absolute bottom-3 left-3 z-[1000]">
+          <div className="bg-slate-900 bg-opacity-90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-xl border border-slate-700 flex gap-4">
+            {[
+              { label: 'Total', val: counts.total, col: '#f1f5f9' },
+              { label: 'In-Transit', val: counts.inTransit, col: '#4ade80' },
+              { label: 'Alert', val: counts.alert, col: '#f87171' },
+              { label: 'Delivered', val: counts.delivered, col: '#60a5fa' },
+            ].map(item => (
+              <div key={item.label} className="text-center">
+                <div className="text-sm font-bold" style={{ color: item.col }}>{item.val}</div>
+                <div className="text-xs text-slate-500">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Live indicator */}
-        <g>
-          <circle cx={W - 50} cy={16} r={5} fill="#22c55e">
-            <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" />
-          </circle>
-          <text x={W - 42} y={20} fill="#22c55e" fontSize={10} fontWeight="bold">LIVE</text>
-        </g>
-
-        {/* Tick counter (for reactivity) */}
-        <text x={W - 80} y={H - 8} fill="#374151" fontSize={8}>
-          {`Updated: ${new Date().toLocaleTimeString()}`}
-        </text>
-      </svg>
-    </div>
-  );
+        <div className="absolute top-3 right-14 z-[1000]">
+          <div className="bg-slate-900 bg-opacity-90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-xl border border-slate-700 flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-bold text-green-400">LIVE</span>
+            <span className="text-xs text-slate-500">{new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ── TRUCK LIST ────────────────────────────────────────────────────────────
   const ListView = () => (
@@ -541,7 +734,7 @@ const CargoTrackingView = () => {
       {filtered.map(truck => (
         <div
           key={truck.id}
-          onClick={() => setSelectedTruck(truck)}
+          onClick={() => { setSelectedTruck(truck); setActiveTab('map'); }}
           className={`bg-white rounded-lg shadow p-3 cursor-pointer hover:shadow-md transition border-l-4 ${
             truck.status === 'alert' ? 'border-red-500' : truck.status === 'delivered' ? 'border-blue-500' : 'border-green-500'
           }`}
@@ -570,8 +763,7 @@ const CargoTrackingView = () => {
             <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(truck.routeProgress * 100, 100)}%` }} />
           </div>
           <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-            <span>{truck.id}</span>
-            <span>{Math.round(truck.routeProgress * 100)}% complete</span>
+            <span>{truck.id}</span><span>{Math.round(truck.routeProgress * 100)}% complete</span>
           </div>
         </div>
       ))}
@@ -591,14 +783,12 @@ const CargoTrackingView = () => {
         <div key={idx} className={`bg-white rounded-lg p-3 shadow border-l-4 ${
           alert.severity === 'high' ? 'border-red-500' : alert.severity === 'medium' ? 'border-yellow-500' : 'border-blue-500'
         } ${alert.acknowledged ? 'opacity-60' : ''}`}>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${alert.severity === 'high' ? 'text-red-600' : 'text-yellow-600'}`} />
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${alert.severity === 'high' ? 'text-red-600' : 'text-yellow-600'}`} />
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="font-semibold text-sm text-gray-800">{alert.id}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  alert.severity === 'high' ? 'bg-red-100 text-red-700' : alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
-                }`}>{alert.severity.toUpperCase()}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${alert.severity === 'high' ? 'bg-red-100 text-red-700' : alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>{alert.severity.toUpperCase()}</span>
                 {alert.acknowledged && <span className="text-xs text-gray-400 bg-gray-100 px-2 rounded-full">Acknowledged</span>}
               </div>
               <p className="text-xs text-gray-600">{alert.message}</p>
@@ -618,15 +808,14 @@ const CargoTrackingView = () => {
     const totalLoaded = trucks.reduce((s, t) => s + t.baselineVolume, 0);
     const totalCurrent = trucks.reduce((s, t) => s + t.currentVolume, 0);
     const totalDelivered = trucks.filter(t => t.status === 'delivered').reduce((s, t) => s + t.currentVolume, 0);
-    const highAlerts = allAlerts.filter(a => a.severity === 'high').length;
-    const suspectLoss = trucks.filter(t => t.volumeVariancePct > 1.5).reduce((s, t) => s + (t.baselineVolume - t.currentVolume), 0);
+    const suspectLoss = trucks.filter(t => t.volumeVariancePct > 1.5).reduce((s, t) => s + Math.max(0, t.baselineVolume - t.currentVolume), 0);
 
     return (
       <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Total Loaded', value: `${(totalLoaded / 1000).toFixed(1)}K L`, icon: '⛽', color: 'bg-blue-50 text-blue-800' },
-            { label: 'Total In Transit', value: `${(totalCurrent / 1000).toFixed(1)}K L`, icon: '🚛', color: 'bg-green-50 text-green-800' },
+            { label: 'In Transit', value: `${(totalCurrent / 1000).toFixed(1)}K L`, icon: '🚛', color: 'bg-green-50 text-green-800' },
             { label: 'Delivered', value: `${(totalDelivered / 1000).toFixed(1)}K L`, icon: '✅', color: 'bg-indigo-50 text-indigo-800' },
             { label: 'Suspect Loss', value: `${Math.max(0, Math.round(suspectLoss)).toLocaleString()} L`, icon: '⚠️', color: 'bg-red-50 text-red-800' },
           ].map(item => (
@@ -637,35 +826,36 @@ const CargoTrackingView = () => {
             </div>
           ))}
         </div>
-
         <div className="bg-white rounded-lg shadow p-3">
-          <h4 className="font-semibold text-gray-800 text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-green-600" />Fleet Status Summary</h4>
+          <h4 className="font-semibold text-gray-800 text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-green-600" />Fleet Status</h4>
           {[
-            { label: 'In-Transit', count: countByStatus.inTransit, total: countByStatus.total, color: 'bg-green-500' },
-            { label: 'Alert', count: countByStatus.alert, total: countByStatus.total, color: 'bg-red-500' },
-            { label: 'Delivered', count: countByStatus.delivered, total: countByStatus.total, color: 'bg-blue-500' },
-            { label: 'Loading', count: countByStatus.loading, total: countByStatus.total, color: 'bg-yellow-500' },
+            { label: 'In-Transit', count: counts.inTransit, color: 'bg-green-500' },
+            { label: 'Alert', count: counts.alert, color: 'bg-red-500' },
+            { label: 'Delivered', count: counts.delivered, color: 'bg-blue-500' },
           ].map(item => (
             <div key={item.label} className="mb-2">
-              <div className="flex justify-between text-xs text-gray-600 mb-0.5">
-                <span>{item.label}</span><span>{item.count}/{item.total}</span>
-              </div>
+              <div className="flex justify-between text-xs text-gray-600 mb-0.5"><span>{item.label}</span><span>{item.count}/{counts.total}</span></div>
               <div className="h-2 bg-gray-100 rounded-full">
-                <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${(item.count / item.total) * 100}%` }} />
+                <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${(item.count / counts.total) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
-
         <div className="bg-white rounded-lg shadow p-3">
           <h4 className="font-semibold text-gray-800 text-sm mb-2 flex items-center gap-2"><Shield className="w-4 h-4 text-green-600" />Integrity Summary</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Active Alerts</span><span className="font-bold text-red-600">{allAlerts.length}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Unacknowledged</span><span className="font-bold text-orange-600">{unackedAlerts.length}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">High Severity</span><span className="font-bold text-red-700">{highAlerts}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Geofence Violations</span><span className="font-bold text-yellow-600">{trucks.filter(t => !t.geofenceCompliant).length}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Seal Breaches</span><span className="font-bold text-red-600">{trucks.filter(t => !t.sealIntact).length}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Compliant Trucks</span><span className="font-bold text-green-600">{trucks.filter(t => t.alerts.length === 0 && t.sealIntact && t.geofenceCompliant).length}</span></div>
+            {[
+              ['Active Alerts', allAlerts.length, 'text-red-600'],
+              ['Unacknowledged', unackedAlerts.length, 'text-orange-600'],
+              ['Geofence Violations', trucks.filter(t => !t.geofenceCompliant).length, 'text-yellow-600'],
+              ['Seal Breaches', trucks.filter(t => !t.sealIntact).length, 'text-red-600'],
+              ['Fully Compliant', trucks.filter(t => t.alerts.length === 0 && t.sealIntact && t.geofenceCompliant).length, 'text-green-600'],
+            ].map(([label, val, cls]) => (
+              <div key={label as string} className="flex justify-between">
+                <span className="text-gray-600">{label}</span>
+                <span className={`font-bold ${cls}`}>{val}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -674,16 +864,15 @@ const CargoTrackingView = () => {
 
   // ── TRUCK DETAIL MODAL ────────────────────────────────────────────────────
   const TruckModal = () => {
-    if (!selectedTruck) return null;
+    if (!selectedTruck || activeTab !== 'map') return null;
     const t = selectedTruck;
     const tempCorrectedVol = Math.round(t.baselineVolume * (1 + (t.fuelType === 'Diesel' ? 0.00065 : 0.0012) * (t.currentTemp - t.baselineTemp)));
     const unexplainedLoss = Math.max(0, tempCorrectedVol - t.currentVolume);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4" onClick={() => setSelectedTruck(null)}>
+      <div className="fixed inset-0 bg-black bg-opacity-70 z-[2000] flex items-end sm:items-center justify-center p-2 sm:p-4" onClick={() => setSelectedTruck(null)}>
         <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-          {/* Header */}
-          <div className={`p-4 rounded-t-2xl sm:rounded-t-2xl flex items-center justify-between ${t.status === 'alert' ? 'bg-red-600' : t.status === 'delivered' ? 'bg-blue-600' : 'bg-green-700'} text-white`}>
+          <div className={`p-4 rounded-t-2xl flex items-center justify-between ${t.status === 'alert' ? 'bg-red-600' : t.status === 'delivered' ? 'bg-blue-600' : 'bg-green-700'} text-white`}>
             <div>
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5" />
@@ -694,88 +883,69 @@ const CargoTrackingView = () => {
             </div>
             <button onClick={() => setSelectedTruck(null)} className="p-1.5 rounded-full hover:bg-white hover:bg-opacity-20"><X className="w-5 h-5" /></button>
           </div>
-
           <div className="p-4 space-y-4">
-            {/* Route */}
             <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2"><Navigation className="w-4 h-4 text-green-600" />Route</div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <span className="truncate">{t.depot}</span>
+              <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Navigation className="w-4 h-4 text-green-600" />Route Progress</div>
+              <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" /><span className="truncate">{t.depot}</span>
                 <span className="text-gray-400">→</span>
-                <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
-                <span className="truncate">{t.destination}</span>
+                <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" /><span className="truncate">{t.destination}</span>
               </div>
-              <div className="mt-2 bg-gray-200 rounded-full h-2">
+              <div className="bg-gray-200 rounded-full h-2">
                 <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min(t.routeProgress * 100, 100)}%` }} />
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>Departed {t.loadingTime}</span>
-                <span>{Math.round(t.routeProgress * 100)}%</span>
-                <span>ETA {t.expectedDelivery}</span>
+                <span>Dep. {t.loadingTime}</span><span>{Math.round(t.routeProgress * 100)}%</span><span>ETA {t.expectedDelivery}</span>
               </div>
             </div>
-
-            {/* Sensors */}
             <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2"><Activity className="w-4 h-4 text-green-600" />Live Sensor Readings</div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Activity className="w-4 h-4 text-green-600" />Live Sensors</div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: 'Temperature', baseline: `${t.baselineTemp}°C`, current: `${t.currentTemp}°C`, icon: <Thermometer className="w-4 h-4 text-orange-500" />, ok: Math.abs(t.currentTemp - t.baselineTemp) < 8 },
-                  { label: 'Density', baseline: `${t.baselineDensity}`, current: `${t.currentDensity}`, unit: 'kg/m³', icon: <Droplets className="w-4 h-4 text-blue-500" />, ok: t.densityVariancePct < 1 },
-                  { label: 'Volume', baseline: `${t.baselineVolume.toLocaleString()}L`, current: `${t.currentVolume.toLocaleString()}L`, icon: <Activity className="w-4 h-4 text-green-500" />, ok: t.volumeVariancePct < 1.5 },
-                ].map(item => (
-                  <div key={item.label} className={`rounded-lg p-2 text-center ${item.ok ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <div className="flex justify-center mb-1">{item.icon}</div>
-                    <div className={`text-sm font-bold ${item.ok ? 'text-green-800' : 'text-red-700'}`}>{item.current}</div>
-                    <div className="text-xs text-gray-500">Base: {item.baseline}</div>
-                    <div className="text-xs font-semibold mt-0.5">{item.label}</div>
+                  { label: 'Temperature', baseline: `${t.baselineTemp}°C`, current: `${t.currentTemp}°C`, ok: Math.abs(t.currentTemp - t.baselineTemp) < 8 },
+                  { label: 'Density', baseline: `${t.baselineDensity}`, current: `${t.currentDensity}`, ok: t.densityVariancePct < 1 },
+                  { label: 'Volume', baseline: `${t.baselineVolume.toLocaleString()}L`, current: `${t.currentVolume.toLocaleString()}L`, ok: t.volumeVariancePct < 1.5 },
+                ].map(s => (
+                  <div key={s.label} className={`rounded-lg p-2 text-center ${s.ok ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <div className={`text-sm font-bold ${s.ok ? 'text-green-800' : 'text-red-700'}`}>{s.current}</div>
+                    <div className="text-xs text-gray-500">Base: {s.baseline}</div>
+                    <div className="text-xs font-semibold mt-0.5">{s.label}</div>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Integrity */}
             <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2"><Shield className="w-4 h-4 text-green-600" />Integrity Analysis</div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Shield className="w-4 h-4 text-green-600" />Integrity</div>
               <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Temp-adjusted vol expected</span><span className="font-medium">{tempCorrectedVol.toLocaleString()} L</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Unexplained volume loss</span><span className={`font-bold ${unexplainedLoss > 100 ? 'text-red-600' : 'text-green-600'}`}>{unexplainedLoss > 0 ? `${unexplainedLoss.toLocaleString()} L` : 'None'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Volume variance</span><span className={`font-medium ${t.volumeVariancePct > 1.5 ? 'text-red-600' : 'text-green-600'}`}>{t.volumeVariancePct}%</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Density variance</span><span className={`font-medium ${t.densityVariancePct > 1.0 ? 'text-orange-600' : 'text-green-600'}`}>{t.densityVariancePct}%</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Seal status</span><span className={`font-bold ${t.sealIntact ? 'text-green-600' : 'text-red-600'}`}>{t.sealIntact ? '✓ Intact' : '✗ Compromised'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Temp-adjusted vol</span><span className="font-medium">{tempCorrectedVol.toLocaleString()} L</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Unexplained loss</span><span className={`font-bold ${unexplainedLoss > 100 ? 'text-red-600' : 'text-green-600'}`}>{unexplainedLoss > 0 ? `${unexplainedLoss.toLocaleString()} L` : 'None'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Vol. variance</span><span className={`font-medium ${t.volumeVariancePct > 1.5 ? 'text-red-600' : 'text-green-600'}`}>{t.volumeVariancePct}%</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Seal</span><span className={`font-bold ${t.sealIntact ? 'text-green-600' : 'text-red-600'}`}>{t.sealIntact ? '✓ Intact' : '✗ Compromised'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Geofence</span><span className={`font-bold ${t.geofenceCompliant ? 'text-green-600' : 'text-red-600'}`}>{t.geofenceCompliant ? '✓ Compliant' : '✗ Violation'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Marker concentration</span><span className="font-medium">{t.markerConc} ppm</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Current GPS</span><span className="font-medium">{t.currentLat.toFixed(4)}°, {t.currentLon.toFixed(4)}°</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">GPS</span><span className="font-medium">{t.currentLat.toFixed(4)}, {t.currentLon.toFixed(4)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Speed</span><span className="font-medium">{t.speed} km/h</span></div>
               </div>
             </div>
-
-            {/* Alerts */}
             {t.alerts.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-red-700 mb-2"><AlertCircle className="w-4 h-4" />Active Alerts ({t.alerts.length})</div>
-                <div className="space-y-2">
-                  {t.alerts.map(a => (
-                    <div key={a.id} className={`rounded-lg p-2.5 border-l-4 text-xs ${a.severity === 'high' ? 'bg-red-50 border-red-500' : 'bg-yellow-50 border-yellow-500'}`}>
-                      <div className="font-semibold text-gray-800 mb-0.5">{a.id} · {a.severity.toUpperCase()}</div>
-                      <div className="text-gray-600">{a.message}</div>
-                      <div className="text-gray-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{a.timestamp}</div>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-2"><AlertCircle className="w-4 h-4" />Active Alerts ({t.alerts.length})</div>
+                {t.alerts.map(a => (
+                  <div key={a.id} className={`rounded-lg p-2.5 border-l-4 text-xs mb-2 ${a.severity === 'high' ? 'bg-red-50 border-red-500' : 'bg-yellow-50 border-yellow-500'}`}>
+                    <div className="font-semibold text-gray-800 mb-0.5">{a.id} · {a.severity.toUpperCase()}</div>
+                    <div className="text-gray-600">{a.message}</div>
+                    <div className="text-gray-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{a.timestamp}</div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Proof of delivery for completed */}
             {t.status === 'delivered' && (
               <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                <div className="flex items-center gap-2 text-sm font-semibold text-blue-800 mb-2"><CheckCircle className="w-4 h-4" />Digital Proof of Delivery</div>
+                <div className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Digital Proof of Delivery</div>
                 <div className="space-y-1 text-xs text-blue-700">
                   <div>Loaded: {t.baselineVolume.toLocaleString()} L at {t.loadingTime}</div>
                   <div>Delivered: {t.currentVolume.toLocaleString()} L</div>
                   <div>Temperature reconciliation: Applied</div>
-                  <div>Integrity status: {t.alerts.length === 0 ? '✓ COMPLIANT' : '⚠ REVIEW REQUIRED'}</div>
+                  <div>Integrity: {t.alerts.length === 0 ? '✓ COMPLIANT' : '⚠ REVIEW REQUIRED'}</div>
                   <div>Seal: {t.sealNo}</div>
                 </div>
               </div>
@@ -787,39 +957,36 @@ const CargoTrackingView = () => {
   };
 
   // ── RENDER ────────────────────────────────────────────────────────────────
-  const tabs: { key: typeof activeTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { key: 'map', label: 'Live Map', icon: <MapPin className="w-4 h-4" /> },
-    { key: 'list', label: 'Trucks', icon: <Truck className="w-4 h-4" />, badge: countByStatus.total },
-    { key: 'alerts', label: 'Alerts', icon: <AlertTriangle className="w-4 h-4" />, badge: unackedAlerts.length },
-    { key: 'reports', label: 'Reports', icon: <BarChart3 className="w-4 h-4" /> },
+  const tabs = [
+    { key: 'map' as const, label: 'Live Map', icon: <MapPin className="w-4 h-4" /> },
+    { key: 'list' as const, label: 'Trucks', icon: <Truck className="w-4 h-4" />, badge: counts.total },
+    { key: 'alerts' as const, label: 'Alerts', icon: <AlertTriangle className="w-4 h-4" />, badge: unackedAlerts.length },
+    { key: 'reports' as const, label: 'Reports', icon: <BarChart3 className="w-4 h-4" /> },
   ];
 
   return (
     <div className="p-4 space-y-4">
       <TruckModal />
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Navigation className="w-6 h-6 text-green-600" />
-            Cargo Tracking & Monitoring
+            <Navigation className="w-6 h-6 text-green-600" />Cargo Tracking &amp; Monitoring
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">Real-time in-transit fuel visibility · SCT Module</p>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          LIVE
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />LIVE
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI cards */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: 'Total', value: countByStatus.total, color: 'text-gray-800', bg: 'bg-gray-50' },
-          { label: 'In-Transit', value: countByStatus.inTransit, color: 'text-green-700', bg: 'bg-green-50' },
-          { label: 'Alerts', value: countByStatus.alert, color: 'text-red-700', bg: 'bg-red-50' },
-          { label: 'Delivered', value: countByStatus.delivered, color: 'text-blue-700', bg: 'bg-blue-50' },
+          { label: 'Total', value: counts.total, color: 'text-gray-800', bg: 'bg-gray-50' },
+          { label: 'In-Transit', value: counts.inTransit, color: 'text-green-700', bg: 'bg-green-50' },
+          { label: 'Alerts', value: counts.alert, color: 'text-red-700', bg: 'bg-red-50' },
+          { label: 'Delivered', value: counts.delivered, color: 'text-blue-700', bg: 'bg-blue-50' },
         ].map(k => (
           <div key={k.label} className={`${k.bg} rounded-lg p-2 text-center`}>
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -839,12 +1006,16 @@ const CargoTrackingView = () => {
             }`}
           >
             {tab.icon}{tab.label}
-            {tab.badge ? <AlertBadge count={tab.badge} /> : null}
+            {tab.badge ? (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                {(tab.badge as number) > 9 ? '9+' : tab.badge}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
 
-      {/* Filters (for list tab) */}
+      {/* Filters for list tab */}
       {activeTab === 'list' && (
         <div className="flex gap-2 flex-wrap">
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-green-500">
@@ -852,7 +1023,6 @@ const CargoTrackingView = () => {
             <option value="in-transit">In-Transit</option>
             <option value="alert">Alert</option>
             <option value="delivered">Delivered</option>
-            <option value="loading">Loading</option>
           </select>
           <select value={filterFuel} onChange={e => setFilterFuel(e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-green-500">
             <option value="all">All Fuel Types</option>
@@ -864,7 +1034,6 @@ const CargoTrackingView = () => {
         </div>
       )}
 
-      {/* Tab content */}
       {activeTab === 'map' && <MapView />}
       {activeTab === 'list' && <ListView />}
       {activeTab === 'alerts' && <AlertsView />}
