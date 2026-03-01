@@ -179,6 +179,14 @@ const LPG_SIZES = [
 ];
 const LPG_VALVE_TYPES = ['POL Valve (KGV-S)', 'POL Valve (KGV-L)', 'CGA-510 Valve', 'BS 341-3 Valve'];
 const LPG_COUNTRIES   = ['Kenya', 'India', 'China', 'Turkey', 'South Africa'];
+const LPG_DISTRIBUTORS = [
+  { id: 'DIST-001', name: 'Nairobi LPG Distributors Ltd',   city: 'Industrial Area, Nairobi' },
+  { id: 'DIST-002', name: 'Mombasa Gas Merchants Co.',       city: 'Mombasa Island' },
+  { id: 'DIST-003', name: 'Rift Valley LPG Suppliers',       city: 'Nakuru Town' },
+  { id: 'DIST-004', name: 'Lake Region Gas Distributors',    city: 'Kisumu Central' },
+  { id: 'DIST-005', name: 'Mt. Kenya Gas Traders Ltd',       city: 'Nyeri Town' },
+  { id: 'DIST-006', name: 'Coast Gas & Energy Merchants',    city: 'Kilifi, Coast' },
+];
 
 function generateLpgInventories(stations: { id: string; name: string; location: string }[]) {
   return stations.map((stn, si) => {
@@ -218,9 +226,10 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
         const kebsCertNo  = `KEBS/KS-836/${issueYear}/${String(Math.floor(next()*90000)+10000).padStart(5,'0')}`;
         const opId        = (pfx: string) => `${pfx}${String(Math.floor(next()*99)+1).padStart(3,'0')}`;
 
-        const fillSeal = `FS-${plant.id}-${fmt2(fillMon)}2026-${String(c+1).padStart(4,'0')}`;
-        const dispSeal = `DS-TRK${String(Math.floor(next()*50)+1).padStart(3,'0')}-${fmt2(fillDay)}${fmt2(fillMon)}26`;
-        const recvSeal = `RS-${stn.id}-${fmt2(fillDay+1)}${fmt2(fillMon)}2026-${String(c+1).padStart(3,'0')}`;
+        const dist      = LPG_DISTRIBUTORS[Math.floor(next() * LPG_DISTRIBUTORS.length)];
+        const fillSeal  = `FS-${plant.id}-${fmt2(fillMon)}2026-${String(c+1).padStart(4,'0')}`;
+        const dispSeal  = `DS-${dist.id}-${fmt2(fillDay)}${fmt2(fillMon)}26-${String(c+1).padStart(3,'0')}`;
+        const recvSeal  = `RS-${stn.id}-${fmt2(fillDay+1)}${fmt2(fillMon)}2026-${String(c+1).padStart(3,'0')}`;
 
         const stampChain: any[] = [
           {
@@ -228,24 +237,25 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
             date: `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`, time: `${fmt2(fillHH)}:${fmt2(fillMM)}`,
             location: plant.name, locationId: plant.id, operatorId: opId('OPR-'),
             stampCode: fillSeal, integrity: 'verified',
-            details: `Gas type: LPG (60% Butane / 40% Propane). Filling pressure: ${sz.wp} bar. Gross mass: ${sz.max} kg.`,
+            details: `Gas type: LPG (60% Butane / 40% Propane). Filling pressure: ${sz.wp} bar. Gross mass: ${sz.max} kg. Tamper-evident valve seal applied.`,
           },
           {
             seq: 2, type: 'dispatch',
             date: `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`, time: `${fmt2(dispHH)}:${fmt2(dispMM)}`,
-            location: plant.city, locationId: plant.id, operatorId: opId('DRV-'),
+            location: dist.name, locationId: dist.id, operatorId: opId('DRV-'),
             stampCode: dispSeal, integrity: 'verified',
-            details: `Dispatched to ${stn.name}, ${stn.location}. Tamper-evident seal applied at dispatch gate.`,
+            details: `Delivered to ${dist.name}, ${dist.city}. Seal integrity verified on receipt. Cylinder added to distributor stock.`,
           },
           {
             seq: 3, type: 'receive',
             date: `${fmt2(fillDay+1)}/${fmt2(fillMon)}/2026`, time: `${fmt2(recvHH)}:${fmt2(recvMM)}`,
             location: stn.name, locationId: stn.id, operatorId: opId('ATT-'),
             stampCode: recvSeal, integrity: 'verified',
-            details: `Seal integrity check PASSED. ${sz.label} cylinder checked into stock at ${stn.name}.`,
+            details: `Distributed from ${dist.name} to ${stn.name}. Seal integrity check PASSED. Cylinder checked into station stock.`,
           },
         ];
-        if (next() > 0.70) {
+        const hasInspection = next() > 0.30;
+        if (hasInspection) {
           const inspSeal = `IS-EPRA-${String(Math.floor(next()*9000)+1000).padStart(4,'0')}-26`;
           stampChain.push({
             seq: 4, type: 'inspect',
@@ -253,7 +263,20 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
             location: stn.name, locationId: stn.id,
             operatorId: `EPRA-INS-${String(Math.floor(next()*20)+1).padStart(3,'0')}`,
             stampCode: inspSeal, integrity: 'verified',
-            details: 'EPRA routine spot-check. Tare weight verified. Valve condition: OK. Certificate valid.',
+            details: 'EPRA routine spot-check. Tare weight verified. Valve condition: OK. KEBS certificate valid.',
+          });
+        }
+        if (next() > 0.45) {
+          const consumerRef = `CV-APP-${String(Math.floor(next()*90000)+10000).padStart(5,'0')}`;
+          const cvDay = fillDay + 2 + Math.floor(next() * 5);
+          const cvHH  = 8 + Math.floor(next() * 13);
+          stampChain.push({
+            seq: hasInspection ? 5 : 4, type: 'consumer',
+            date: `${fmt2(cvDay > 28 ? 28 : cvDay)}/${fmt2(fillMon)}/2026`, time: `${fmt2(cvHH)}:${fmt2(Math.floor(next()*60))}`,
+            location: stn.name, locationId: stn.id,
+            operatorId: `CONSUMER-APP`,
+            stampCode: consumerRef, integrity: 'verified',
+            details: 'Cylinder scanned by consumer via EPRA SafeGas smartphone app. RFID tag verified. Seal code matched. Authenticity confirmed.',
           });
         }
         cylinders.push({
@@ -447,6 +470,7 @@ const FuelIntegrityApp = () => {
   const [lpgInventories] = useState(() => generateLpgInventories(gasStations));
   const [selectedCylinder, setSelectedCylinder] = useState<any>(null);
   const [lpgSizeFilter, setLpgSizeFilter] = useState<number | null>(null);
+  const [cylinderModalTab, setCylinderModalTab] = useState<'events' | 'inspections'>('events');
   const [stationTanks] = useState(() => generateStationTanks(gasStations));
   const [selectedStationLayout, setSelectedStationLayout] = useState<{ station: any; tankData: any } | null>(null);
   const [cylinderListModal, setCylinderListModal] = useState<{ inv: any; stationName: string } | null>(null);
@@ -1611,7 +1635,7 @@ const FuelIntegrityApp = () => {
                     </div>
                   )}
                 </div>
-                <button onClick={() => { setCylinderListModal(null); setSelectedCylinder(cyl); }}
+                <button onClick={() => { setCylinderListModal(null); setCylinderModalTab('events'); setSelectedCylinder(cyl); }}
                   className="mt-2 text-xs text-orange-600 hover:underline font-semibold">
                   View full details →
                 </button>
@@ -1831,10 +1855,17 @@ const FuelIntegrityApp = () => {
       dispatch: 'bg-blue-100 text-blue-800',
       receive:  'bg-green-100 text-green-800',
       inspect:  'bg-purple-100 text-purple-800',
+      consumer: 'bg-teal-100 text-teal-800',
     };
     const stampLabel: Record<string, string> = {
-      fill: 'Filling Plant', dispatch: 'Dispatch Gate', receive: 'Station Receipt', inspect: 'EPRA Inspection',
+      fill:     'Brand Owner Filling Plant',
+      dispatch: 'Local Distributor Delivery',
+      receive:  'Gas Station Receipt',
+      inspect:  'EPRA Inspection',
+      consumer: 'Consumer Verification',
     };
+    const recentEvents     = cyl.stampChain.filter((ev: any) => ['fill', 'dispatch', 'receive'].includes(ev.type));
+    const inspectionEvents = cyl.stampChain.filter((ev: any) => ['inspect', 'consumer'].includes(ev.type));
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCylinder(null)}>
         <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
@@ -1886,9 +1917,8 @@ const FuelIntegrityApp = () => {
                   ['Country of Manufacture',    cyl.countryOfManufacture],
                   ['Date of Manufacture',       cyl.manufactureDate],
                   ['Next Requalification',      cyl.nextTestDate],
-                  ['Date of Last Refill',       cyl.dateOfLastRefill],
-                  ['Date of Issuance / Reval.', cyl.dateOfIssuance],
-                  ['KEBS Certification No.',    cyl.kebsCertNo],
+                  ['Date of Last Refill',    cyl.dateOfLastRefill],
+                  ['KEBS Certification No.', cyl.kebsCertNo],
                 ] as [string, string][]).map(([lbl, val]) => (
                   <div key={lbl} className="flex justify-between gap-2">
                     <span className="text-gray-500 flex-shrink-0">{lbl}</span>
@@ -1925,28 +1955,72 @@ const FuelIntegrityApp = () => {
               </div>
             </div>
 
-            {/* Multi-level Secure Stamp Chain */}
+            {/* Supply Chain Events – tabbed */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Multi-Level Secure Stamp Chain</p>
-              <div className="space-y-0">
-                {cyl.stampChain.map((ev: any, idx: number) => (
-                  <div key={ev.seq} className="flex gap-3">
-                    <div className="flex flex-col items-center flex-shrink-0">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{ev.seq}</div>
-                      {idx < cyl.stampChain.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 my-1" style={{ minHeight: '1.5rem' }} />}
-                    </div>
-                    <div className="pb-4 flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stampStyle[ev.type] || 'bg-gray-100 text-gray-600'}`}>{stampLabel[ev.type] || ev.type}</span>
-                      </div>
-                      <p className="text-xs font-semibold text-gray-700">{ev.location}</p>
-                      <p className="text-xs text-gray-500">{ev.date} at {ev.time} · {ev.operatorId}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{ev.details}</p>
-                      <p className="text-xs font-mono text-gray-400 mt-0.5 break-all">{ev.stampCode}</p>
-                    </div>
-                  </div>
-                ))}
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Supply Chain Events</p>
+              {/* Tab bar */}
+              <div className="flex border-b border-gray-200 mb-3">
+                <button
+                  onClick={() => setCylinderModalTab('events')}
+                  className={`flex-1 py-2 text-xs font-semibold border-b-2 transition ${cylinderModalTab === 'events' ? 'border-orange-500 text-orange-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  Recent Events
+                </button>
+                <button
+                  onClick={() => setCylinderModalTab('inspections')}
+                  className={`flex-1 py-2 text-xs font-semibold border-b-2 transition ${cylinderModalTab === 'inspections' ? 'border-purple-500 text-purple-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  Inspections {inspectionEvents.length > 0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${cylinderModalTab === 'inspections' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{inspectionEvents.length}</span>}
+                </button>
               </div>
+              {/* Recent Events tab */}
+              {cylinderModalTab === 'events' && (
+                <div className="space-y-0">
+                  {recentEvents.map((ev: any, idx: number) => (
+                    <div key={ev.seq} className="flex gap-3">
+                      <div className="flex flex-col items-center flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center text-xs font-bold text-orange-600">{idx + 1}</div>
+                        {idx < recentEvents.length - 1 && <div className="w-0.5 flex-1 bg-orange-100 my-1" style={{ minHeight: '1.5rem' }} />}
+                      </div>
+                      <div className="pb-4 flex-1 min-w-0">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stampStyle[ev.type] || 'bg-gray-100 text-gray-600'}`}>{stampLabel[ev.type] || ev.type}</span>
+                        <p className="text-xs font-semibold text-gray-700 mt-1">{ev.location}</p>
+                        <p className="text-xs text-gray-500">{ev.date} at {ev.time} · {ev.operatorId}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{ev.details}</p>
+                        <p className="text-xs font-mono text-gray-400 mt-0.5 break-all">{ev.stampCode}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Inspections tab */}
+              {cylinderModalTab === 'inspections' && (
+                <div>
+                  {inspectionEvents.length === 0 ? (
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <p className="text-gray-400 text-xs">No inspection records for this cylinder</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0">
+                      {inspectionEvents.map((ev: any, idx: number) => (
+                        <div key={ev.seq} className="flex gap-3">
+                          <div className="flex flex-col items-center flex-shrink-0">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${ev.type === 'consumer' ? 'bg-teal-50 border border-teal-200 text-teal-600' : 'bg-purple-50 border border-purple-200 text-purple-600'}`}>{idx + 1}</div>
+                            {idx < inspectionEvents.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 my-1" style={{ minHeight: '1.5rem' }} />}
+                          </div>
+                          <div className="pb-4 flex-1 min-w-0">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stampStyle[ev.type] || 'bg-gray-100 text-gray-600'}`}>{stampLabel[ev.type] || ev.type}</span>
+                            <p className="text-xs font-semibold text-gray-700 mt-1">{ev.location}</p>
+                            <p className="text-xs text-gray-500">{ev.date} at {ev.time} · {ev.operatorId}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{ev.details}</p>
+                            <p className="text-xs font-mono text-gray-400 mt-0.5 break-all">{ev.stampCode}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2244,35 +2318,40 @@ const FuelIntegrityApp = () => {
                 <div className="flex items-center gap-2 text-blue-100 text-sm"><MapPin className="w-4 h-4" /><span>{selectedLocation.location}</span></div>
               </div>
               <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Current Stock</p><p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p>
-                    {(() => {
-                      // Stations: derive from live tank data; Depots: use stockData
-                      if (!selectedLocation.id.startsWith('DEP')) {
-                        const td = stationTanks.find(t => t.stationId === selectedLocation.id);
-                        if (!td) return null;
-                        return (
-                          <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
-                            {td.tanks.map((tk: any) => (
-                              <div key={tk.id} className="flex justify-between text-xs">
-                                <span className="text-gray-600">{tk.fuelType}</span>
-                                <span className="font-semibold text-gray-800">{tk.current.toLocaleString()} L</span>
-                              </div>
-                            ))}
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-600 mb-2">Current Stock</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <p className="text-2xl font-bold text-blue-600 whitespace-nowrap">{selectedLocation.current.toLocaleString()} L</p>
+                      {(() => {
+                        if (!selectedLocation.id.startsWith('DEP')) {
+                          const td = stationTanks.find(t => t.stationId === selectedLocation.id);
+                          if (!td) return null;
+                          return (
+                            <div className="flex gap-2 flex-wrap border-l border-blue-200 pl-3">
+                              {td.tanks.map((tk: any) => (
+                                <span key={tk.id} className="text-xs bg-blue-100 px-2 py-0.5 rounded-full text-blue-800">
+                                  <span className="text-blue-500">{tk.fuelType}:</span> <span className="font-semibold">{tk.current.toLocaleString()} L</span>
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        }
+                        const sd = stockData.find(s => s.location === selectedLocation.name);
+                        return sd ? (
+                          <div className="flex gap-2 flex-wrap border-l border-blue-200 pl-3">
+                            <span className="text-xs bg-yellow-100 px-2 py-0.5 rounded-full text-yellow-800"><span className="text-yellow-600">Diesel:</span> <span className="font-semibold">{sd.diesel.toLocaleString()} L</span></span>
+                            <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full text-orange-800"><span className="text-orange-600">Gasoline:</span> <span className="font-semibold">{sd.gasoline.toLocaleString()} L</span></span>
+                            <span className="text-xs bg-cyan-100 px-2 py-0.5 rounded-full text-cyan-800"><span className="text-cyan-600">Kerosene:</span> <span className="font-semibold">{sd.kerosene.toLocaleString()} L</span></span>
                           </div>
-                        );
-                      }
-                      const sd = stockData.find(s => s.location === selectedLocation.name);
-                      return sd ? (
-                        <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
-                          <div className="flex justify-between text-xs"><span className="text-gray-600">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
-                          <div className="flex justify-between text-xs"><span className="text-gray-600">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
-                          <div className="flex justify-between text-xs"><span className="text-gray-600">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
-                        </div>
-                      ) : null;
-                    })()}
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Capacity</p><p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p></div>
+                  <div className="bg-green-50 p-4 rounded-lg flex items-center justify-between">
+                    <p className="text-xs text-gray-600">Capacity</p>
+                    <p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p>
+                  </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-blue-600 h-3 rounded-full" style={{ width: `${(selectedLocation.current / selectedLocation.capacity) * 100}%` }} /></div>
                 {/* Tank Layout button – stations only */}
@@ -2295,9 +2374,6 @@ const FuelIntegrityApp = () => {
                     </button>
                   );
                 })()}
-                {!selectedLocation.id.startsWith('DEP') && (
-                  <div className="border-t pt-6"><h3 className="font-semibold text-gray-800 mb-2">Supply Depot</h3><div className="bg-gray-50 p-3 rounded"><p className="text-sm text-gray-600">{depots.find(d => d.id === selectedLocation.depot)?.name || 'N/A'}</p></div></div>
-                )}
                 {/* ── LPG CYLINDERS SECTION ── */}
                 {!selectedLocation.id.startsWith('DEP') && (() => {
                   const inv = lpgInventories.find(i => i.stationId === selectedLocation.id);
