@@ -280,6 +280,92 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── UNDERGROUND TANK / ATG SENSOR DATA ──────────────────────────────────────
+// Exactly 5 of 15 stations (≈33%) carry Kerosene:  STN-001,005,006,009,013
+const KEROSENE_STN_IDS = new Set(['STN-001', 'STN-005', 'STN-006', 'STN-009', 'STN-013']);
+const ATG_MODELS = [
+  { model: 'Veeder-Root TLS-450PLUS',          mfr: 'Veeder-Root' },
+  { model: 'OPW SiteSentinel Integra 100',     mfr: 'OPW' },
+  { model: 'Franklin FMS EVO 600D',            mfr: 'Franklin Fueling Systems' },
+];
+
+function generateStationTanks(stations: { id: string; name: string; capacity: number; current: number }[]) {
+  return stations.map((stn, si) => {
+    let seed = si * 7919 + 13;
+    const next = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 4294967296; };
+    const fmt2 = (n: number) => String(n).padStart(2, '0');
+
+    const hasK   = KEROSENE_STN_IDS.has(stn.id);
+    const fuels  = (hasK ? ['Diesel', 'Gasoline', 'Kerosene'] : ['Diesel', 'Gasoline']) as ('Diesel' | 'Gasoline' | 'Kerosene')[];
+    // Capacity split: D 45/55 %, G 35/45 %, K 20 %
+    const capRatios = hasK ? [0.45, 0.35, 0.20] : [0.55, 0.45];
+    const caps    = capRatios.map(r => Math.round(stn.capacity * r));
+    // Current split – randomised but forced to sum to stn.current
+    const rawFill = fuels.map(() => 0.50 + next() * 0.42);
+    const rawCur  = caps.map((c, i) => c * rawFill[i]);
+    const scale   = stn.current / rawCur.reduce((a, b) => a + b, 0);
+    const currents = rawCur.map((c, i, arr) =>
+      i === arr.length - 1
+        ? stn.current - rawCur.slice(0, -1).map(v => Math.round(v * scale)).reduce((a, b) => a + b, 0)
+        : Math.round(c * scale)
+    );
+
+    const baseAtg = Math.floor(next() * ATG_MODELS.length);
+
+    const tanks = fuels.map((fuel, i) => {
+      const cap     = caps[i];
+      const cur     = currents[i];
+      const fillPct = Math.round((cur / cap) * 100);
+      const diam    = fuel === 'Kerosene' ? 2000 : cap >= 18000 ? 2700 : cap >= 12000 ? 2400 : 2100;
+      const tempC   = Math.round((20 + next() * 12) * 10) / 10;
+      const waterMm = Math.floor(next() * 15);
+      const statusR = next();
+      const sStatus = statusR > 0.93 ? 'offline' : statusR > 0.85 ? 'warning' : 'online';
+      const syncMin = sStatus === 'offline' ? 180 + Math.floor(next() * 300)
+                    : sStatus === 'warning'  ?  35 + Math.floor(next() * 55)
+                    :                            Math.floor(next() * 12);
+      const syncStr = syncMin < 60 ? `${syncMin} min ago` : `${Math.floor(syncMin / 60)}h ${syncMin % 60}m ago`;
+      const atg     = ATG_MODELS[(baseAtg + i) % ATG_MODELS.length];
+      const fCode   = fuel === 'Diesel' ? 'D' : fuel === 'Gasoline' ? 'G' : 'K';
+      const stnNum  = stn.id.slice(-3);
+      const tankNum = String(i + 1);
+
+      return {
+        id:            `TK-${stnNum}-${fCode}${tankNum}`,
+        fuelType:      fuel,
+        capacity:      cap,
+        current:       cur,
+        fillPct,
+        diameterMm:    diam,
+        heightMm:      Math.round(diam * (cur / cap)),
+        maxHeightMm:   diam,
+        tempC,
+        waterBottomMm: waterMm,
+        sensor: {
+          id:             `SGS-${stnNum}-0${tankNum}`,
+          model:          atg.model,
+          manufacturer:   atg.mfr,
+          status:         sStatus as 'online' | 'warning' | 'offline',
+          syncMinsAgo:    syncMin,
+          lastSyncStr:    syncStr,
+          lastSyncFull:   (() => {
+            const d = new Date('2026-02-10T08:00:00');
+            d.setMinutes(d.getMinutes() - syncMin);
+            return d.toISOString().replace('T', ' ').slice(0, 16);
+          })(),
+          firmware:        `v${4 + Math.floor(next() * 3)}.${Math.floor(next() * 10)}.${String(Math.floor(next() * 20)).padStart(2, '0')}`,
+          signalStrength:  sStatus === 'offline' ? 0 : sStatus === 'warning' ? 30 + Math.floor(next() * 30) : 70 + Math.floor(next() * 30),
+          probeSerial:     `PRB-${stnNum}-${fCode}-${String(Math.floor(next() * 9000) + 1000).padStart(4, '0')}`,
+          networkAddr:     `192.168.${10 + si}.${10 + i}`,
+        },
+      };
+    });
+
+    return { stationId: stn.id, tanks, hasKerosene: hasK };
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const FuelIntegrityApp = () => {
   const [currentUser, setCurrentUser] = useState<{ role: string; name: string } | null>(null);
   const [currentView, setCurrentView] = useState('login');
@@ -356,6 +442,8 @@ const FuelIntegrityApp = () => {
   const [lpgInventories] = useState(() => generateLpgInventories(gasStations));
   const [selectedCylinder, setSelectedCylinder] = useState<any>(null);
   const [lpgSizeFilter, setLpgSizeFilter] = useState<number | null>(null);
+  const [stationTanks] = useState(() => generateStationTanks(gasStations));
+  const [selectedStationLayout, setSelectedStationLayout] = useState<{ station: any; tankData: any } | null>(null);
 
   const [transactions, setTransactions] = useState(generateSCTTransactions);
 
@@ -1429,6 +1517,205 @@ const FuelIntegrityApp = () => {
     </div>
   );
 
+  // ── STATION TANK LAYOUT MODAL ──
+  const StationLayoutModal = () => {
+    if (!selectedStationLayout) return null;
+    const { station, tankData } = selectedStationLayout;
+    const tanks = tankData.tanks;
+
+    const FUEL_COLOR: Record<string, { bg: string; fill: string; stroke: string; text: string; label: string }> = {
+      Diesel:   { bg: '#fef3c7', fill: '#b45309', stroke: '#d97706', text: '#78350f', label: 'Diesel'   },
+      Gasoline: { bg: '#dbeafe', fill: '#1d4ed8', stroke: '#3b82f6', text: '#1e3a8a', label: 'Gasoline' },
+      Kerosene: { bg: '#ede9fe', fill: '#6d28d9', stroke: '#8b5cf6', text: '#4c1d95', label: 'Kerosene' },
+    };
+
+    // SVG geometry
+    const SVG_W   = 580;
+    const GROUND  = 128;
+    const CANOPY_Y = 22;  const CANOPY_H = 28;
+    const TANK_TOP = GROUND + 28;
+    const TANK_H   = 128;
+    const SVG_H    = TANK_TOP + TANK_H + 36;
+    const PAD      = 16;
+    const GAP      = 14;
+    const N        = tanks.length;
+    const TANK_W   = Math.floor((SVG_W - 2 * PAD - (N - 1) * GAP) / N);
+    const tx = (i: number) => PAD + i * (TANK_W + GAP);
+    const mx = (i: number) => tx(i) + TANK_W / 2;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setSelectedStationLayout(null)}>
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="sticky top-0 bg-gradient-to-r from-slate-800 to-slate-600 text-white p-4 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-300 uppercase tracking-wide">Underground Tank Farm &amp; Gauging System</p>
+                <h3 className="font-bold text-lg">{station.name}</h3>
+                <p className="text-slate-300 text-sm">{station.location} · {station.company}</p>
+              </div>
+              <button onClick={() => setSelectedStationLayout(null)} className="text-white hover:text-slate-300"><X className="w-6 h-6" /></button>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-5">
+            {/* SVG Cross-Section */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
+                <Activity className="w-3.5 h-3.5" />Cross-Section Schematic (Live Sensor Data)
+              </p>
+              <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full" style={{ display: 'block', height: 260 }}>
+                  {/* Above-ground sky */}
+                  <rect x="0" y="0" width={SVG_W} height={GROUND} fill="#f0f9ff" />
+
+                  {/* Canopy */}
+                  <rect x="24" y={CANOPY_Y} width={SVG_W - 48} height={CANOPY_H} rx="4" fill="#1e293b" />
+                  <text x={SVG_W / 2} y={CANOPY_Y + 17} textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="monospace">FORECOURT CANOPY</text>
+
+                  {/* Dispensers (2 per tank) */}
+                  {tanks.map((_: any, i: number) => {
+                    const cx = mx(i);
+                    return [
+                      <rect key={`da-${i}`} x={cx - 26} y="55" width="22" height="38" rx="3" fill="#334155" />,
+                      <rect key={`db-${i}`} x={cx + 4}  y="55" width="22" height="38" rx="3" fill="#334155" />,
+                      <rect key={`dga-${i}`} x={cx - 20} y="64" width="10" height="6" rx="1" fill="#fbbf24" />,
+                      <rect key={`dgb-${i}`} x={cx + 10} y="64" width="10" height="6" rx="1" fill="#fbbf24" />,
+                      <text key={`dla-${i}`} x={cx - 15} y="82" textAnchor="middle" fill="#94a3b8" fontSize="6" fontFamily="monospace">DISP</text>,
+                      <text key={`dlb-${i}`} x={cx + 15} y="82" textAnchor="middle" fill="#94a3b8" fontSize="6" fontFamily="monospace">DISP</text>,
+                    ];
+                  })}
+
+                  {/* Ground line */}
+                  <rect x="0" y={GROUND - 2} width={SVG_W} height="4" fill="#374151" />
+                  <text x="6" y={GROUND - 6} fill="#6b7280" fontSize="7" fontFamily="monospace">GROUND LEVEL</text>
+
+                  {/* Underground soil background */}
+                  <rect x="0" y={GROUND + 2} width={SVG_W} height={SVG_H - GROUND - 2} fill="#fefce8" />
+
+                  {/* Tanks */}
+                  {tanks.map((tank: any, i: number) => {
+                    const x  = tx(i);
+                    const cx = mx(i);
+                    const c  = FUEL_COLOR[tank.fuelType];
+                    const fillH  = Math.round(TANK_H * tank.fillPct / 100);
+                    const fillY  = TANK_TOP + TANK_H - fillH;
+                    const sColor = tank.sensor.status === 'online' ? '#22c55e' : tank.sensor.status === 'warning' ? '#f59e0b' : '#ef4444';
+
+                    return (
+                      <g key={tank.id}>
+                        {/* Fill pipe from ground */}
+                        <line x1={cx} y1={GROUND + 2} x2={cx} y2={TANK_TOP} stroke="#9ca3af" strokeWidth="2" strokeDasharray="4,3" />
+                        {/* Manhole cover */}
+                        <ellipse cx={cx} cy={GROUND + 2} rx="9" ry="4" fill="#6b7280" />
+                        <text x={cx} y={GROUND + 14} textAnchor="middle" fill="#6b7280" fontSize="6" fontFamily="monospace">FP-{i + 1}</text>
+
+                        {/* Tank shell */}
+                        <rect x={x} y={TANK_TOP} width={TANK_W} height={TANK_H} rx="10" fill={c.bg} stroke={c.stroke} strokeWidth="2" />
+                        {/* Liquid fill */}
+                        <clipPath id={`clip-${tank.id}`}>
+                          <rect x={x} y={TANK_TOP} width={TANK_W} height={TANK_H} rx="10" />
+                        </clipPath>
+                        <rect x={x} y={fillY} width={TANK_W} height={fillH} fill={c.fill} fillOpacity="0.65" clipPath={`url(#clip-${tank.id})`} />
+                        {/* Liquid surface line */}
+                        {fillH > 6 && <line x1={x + 2} y1={fillY} x2={x + TANK_W - 2} y2={fillY} stroke={c.stroke} strokeWidth="1" strokeDasharray="3,2" />}
+                        {/* Fill% */}
+                        <text x={cx} y={fillY - 5} textAnchor="middle" fill={c.text} fontSize="9" fontWeight="bold">{tank.fillPct}%</text>
+                        {/* Fuel type */}
+                        <text x={cx} y={TANK_TOP + 16} textAnchor="middle" fill={c.text} fontSize="9" fontWeight="bold" fontFamily="monospace">{tank.fuelType.toUpperCase()}</text>
+                        {/* Tank ID */}
+                        <text x={cx} y={TANK_TOP + 27} textAnchor="middle" fill="#9ca3af" fontSize="7" fontFamily="monospace">{tank.id}</text>
+                        {/* Volumes */}
+                        <text x={cx} y={TANK_TOP + TANK_H - 20} textAnchor="middle" fill={c.text} fontSize="8" fontWeight="bold">{tank.current.toLocaleString()} L</text>
+                        <text x={cx} y={TANK_TOP + TANK_H - 9}  textAnchor="middle" fill="#9ca3af" fontSize="7">cap: {tank.capacity.toLocaleString()} L</text>
+                        {/* Sensor dot */}
+                        <circle cx={x + TANK_W - 10} cy={TANK_TOP + 10} r="5" fill={sColor} />
+                        <circle cx={x + TANK_W - 10} cy={TANK_TOP + 10} r="8" fill={sColor} fillOpacity="0.2" />
+                        {/* Sensor wire */}
+                        <line x1={x + TANK_W - 10} y1={TANK_TOP + 18} x2={x + TANK_W - 10} y2={TANK_TOP + TANK_H} stroke={sColor} strokeWidth="1" strokeDasharray="3,2" strokeOpacity="0.5" />
+                      </g>
+                    );
+                  })}
+
+                  {/* Legend */}
+                  {[['#22c55e','Online'],['#f59e0b','Warning'],['#ef4444','Offline']].map(([col,lbl], li) => (
+                    <g key={lbl}>
+                      <circle cx={8 + li * 62} cy={SVG_H - 10} r="5" fill={col} />
+                      <text x={16 + li * 62} y={SVG_H - 6} fill="#6b7280" fontSize="8" fontFamily="monospace">{lbl}</text>
+                    </g>
+                  ))}
+                  <text x={SVG_W - 6} y={SVG_H - 6} textAnchor="end" fill="#9ca3af" fontSize="7" fontFamily="monospace">● ATG PROBE</text>
+                </svg>
+              </div>
+            </div>
+
+            {/* Sensor status cards */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
+                <Activity className="w-3.5 h-3.5" />Tank Gauging Sensors
+              </p>
+              <div className="space-y-3">
+                {tanks.map((tank: any) => {
+                  const s  = tank.sensor;
+                  const c  = FUEL_COLOR[tank.fuelType];
+                  const st = s.status;
+                  const statusCls = st === 'online'  ? 'bg-green-100 text-green-800 border-green-200'
+                                  : st === 'warning' ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                  : 'bg-red-100 text-red-800 border-red-200';
+                  const dotCls   = st === 'online'  ? 'bg-green-500' : st === 'warning' ? 'bg-yellow-500' : 'bg-red-500';
+                  return (
+                    <div key={tank.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${dotCls}`} />
+                          <span className="font-bold text-sm" style={{ color: c.text }}>{tank.fuelType}</span>
+                          <span className="text-xs text-gray-400 font-mono">{tank.id}</span>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${statusCls}`}>{st.toUpperCase()}</span>
+                      </div>
+                      {/* Sensor readings row */}
+                      <div className="flex gap-2 mb-3 text-xs">
+                        {[
+                          { label: 'Level', value: `${tank.heightMm} / ${tank.maxHeightMm} mm` },
+                          { label: 'Temp',  value: `${tank.tempC} °C` },
+                          { label: 'Water', value: `${tank.waterBottomMm} mm` },
+                          { label: 'Signal',value: `${s.signalStrength}%` },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="flex-1 bg-white rounded-lg p-2 text-center border border-gray-100">
+                            <p className="text-gray-400 text-xs mb-0.5">{label}</p>
+                            <p className="font-bold text-gray-800">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Sensor metadata */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs bg-white rounded-lg p-2 border border-gray-100">
+                        {[
+                          ['Sensor ID',     s.id],
+                          ['Model',         s.model],
+                          ['Manufacturer',  s.manufacturer],
+                          ['Probe Serial',  s.probeSerial],
+                          ['Firmware',      s.firmware],
+                          ['Network Addr',  s.networkAddr],
+                          ['Last Sync',     s.lastSyncFull],
+                          ['Sync Delay',    s.lastSyncStr],
+                        ].map(([lbl, val]) => (
+                          <div key={lbl} className="flex gap-1">
+                            <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
+                            <span className="font-semibold text-gray-800 font-mono truncate">{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── LPG CYLINDER MODAL ──
   const LpgCylinderModal = () => {
     if (!selectedCylinder) return null;
@@ -1847,17 +2134,55 @@ const FuelIntegrityApp = () => {
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-blue-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Current Stock</p><p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p>
-                    {(() => { const sd = stockData.find(s => s.location === selectedLocation.name); return sd ? (
-                      <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
-                        <div className="flex justify-between text-xs"><span className="text-gray-600">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
-                        <div className="flex justify-between text-xs"><span className="text-gray-600">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
-                        <div className="flex justify-between text-xs"><span className="text-gray-600">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
-                      </div>
-                    ) : null; })()}
+                    {(() => {
+                      // Stations: derive from live tank data; Depots: use stockData
+                      if (!selectedLocation.id.startsWith('DEP')) {
+                        const td = stationTanks.find(t => t.stationId === selectedLocation.id);
+                        if (!td) return null;
+                        return (
+                          <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
+                            {td.tanks.map((tk: any) => (
+                              <div key={tk.id} className="flex justify-between text-xs">
+                                <span className="text-gray-600">{tk.fuelType}</span>
+                                <span className="font-semibold text-gray-800">{tk.current.toLocaleString()} L</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      const sd = stockData.find(s => s.location === selectedLocation.name);
+                      return sd ? (
+                        <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
+                          <div className="flex justify-between text-xs"><span className="text-gray-600">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
+                          <div className="flex justify-between text-xs"><span className="text-gray-600">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
+                          <div className="flex justify-between text-xs"><span className="text-gray-600">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg"><p className="text-xs text-gray-600 mb-1">Capacity</p><p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p></div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-blue-600 h-3 rounded-full" style={{ width: `${(selectedLocation.current / selectedLocation.capacity) * 100}%` }} /></div>
+                {/* Tank Layout button – stations only */}
+                {!selectedLocation.id.startsWith('DEP') && (() => {
+                  const td = stationTanks.find(t => t.stationId === selectedLocation.id);
+                  if (!td) return null;
+                  const anyWarn = td.tanks.some((tk: any) => tk.sensor.status !== 'online');
+                  return (
+                    <button
+                      onClick={() => setSelectedStationLayout({ station: selectedLocation, tankData: td })}
+                      className="w-full flex items-center gap-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl p-3.5 transition"
+                    >
+                      <Activity className="w-5 h-5 flex-shrink-0 text-slate-300" />
+                      <div className="text-left flex-1">
+                        <p className="font-bold text-sm">View Tank Layout &amp; Sensor Data</p>
+                        <p className="text-xs text-slate-400">{td.tanks.length} underground tanks · ATG gauging system</p>
+                      </div>
+                      {anyWarn && <span className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">Alert</span>}
+                      <span className="text-slate-400 text-sm">›</span>
+                    </button>
+                  );
+                })()}
                 <div className="border-t pt-6 space-y-4">
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" />Contact Information</h3>
                   <div className="space-y-3">
@@ -2059,13 +2384,31 @@ const FuelIntegrityApp = () => {
                         <div><span className="text-gray-600">Stock: </span><span className="font-semibold">{s.current.toLocaleString()} L</span></div>
                         <div><span className="text-gray-600">Capacity: </span><span className="font-semibold">{s.capacity.toLocaleString()} L</span></div>
                       </div>
-                      {(() => { const sd = stockData.find(st => st.location === s.name); return sd ? (
-                        <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
-                          <div className="bg-yellow-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Diesel</span><span className="font-semibold text-gray-800">{sd.diesel.toLocaleString()} L</span></div>
-                          <div className="bg-orange-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Gasoline</span><span className="font-semibold text-gray-800">{sd.gasoline.toLocaleString()} L</span></div>
-                          <div className="bg-purple-50 rounded px-2 py-1 text-center"><span className="text-gray-500 block">Kerosene</span><span className="font-semibold text-gray-800">{sd.kerosene.toLocaleString()} L</span></div>
-                        </div>
-                      ) : null; })()}
+                      {(() => {
+                        const td = stationTanks.find(t => t.stationId === s.id);
+                        if (!td) return null;
+                        const fuelBg: Record<string, string> = { Diesel: 'bg-yellow-50', Gasoline: 'bg-blue-50', Kerosene: 'bg-purple-50' };
+                        const hasOffline = td.tanks.some((tk: any) => tk.sensor.status === 'offline');
+                        const hasWarn    = !hasOffline && td.tanks.some((tk: any) => tk.sensor.status === 'warning');
+                        return (
+                          <div>
+                            <div className={`grid gap-1 mt-2 text-xs`} style={{ gridTemplateColumns: `repeat(${td.tanks.length}, 1fr)` }}>
+                              {td.tanks.map((tk: any) => (
+                                <div key={tk.id} className={`${fuelBg[tk.fuelType] || 'bg-gray-50'} rounded px-1 py-1 text-center`}>
+                                  <span className="text-gray-500 block truncate">{tk.fuelType}</span>
+                                  <span className="font-semibold text-gray-800">{tk.current.toLocaleString()} L</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${hasOffline ? 'bg-red-100 text-red-700' : hasWarn ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                ATG {hasOffline ? '⚠ Offline' : hasWarn ? '⚠ Warning' : '✓ Online'}
+                              </span>
+                              <span className="text-xs text-gray-400">{td.tanks.length} tanks</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {(() => { const inv = lpgInventories.find(i => i.stationId === s.id); return inv ? (
                         <div className="flex items-center gap-1.5 mt-2 px-2 py-1.5 bg-orange-50 rounded border border-orange-100">
                           <Flame className="w-3 h-3 text-orange-500 flex-shrink-0" />
@@ -3001,6 +3344,7 @@ const FuelIntegrityApp = () => {
         </div>
       )}
 
+      <StationLayoutModal />
       <LpgCylinderModal />
       {currentView === 'dashboard' && hasAccess('dashboard') && <DashboardView />}
       {currentView === 'sct' && hasAccess('sct') && <SCTView />}
