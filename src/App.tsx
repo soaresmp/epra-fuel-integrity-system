@@ -174,10 +174,8 @@ const LPG_FILLING_PLANTS = [
   { id: 'FPL-005', name: 'ProGas Nairobi South Plant',     city: 'South B, Nairobi' },
 ];
 const LPG_SIZES = [
-  { kg: 6,    label: '6 kg',    tare: 5.0,  max: 11.0, wc: 13.4, wp: 17.5, tp: 30 },
-  { kg: 13,   label: '13 kg',   tare: 8.2,  max: 21.2, wc: 28.9, wp: 17.5, tp: 30 },
-  { kg: 22.5, label: '22.5 kg', tare: 12.5, max: 35.0, wc: 50.0, wp: 17.5, tp: 30 },
-  { kg: 50,   label: '50 kg',   tare: 26.0, max: 76.0, wc: 111.0,wp: 17.5, tp: 30 },
+  { kg: 3,  label: '3 kg',  tare: 3.5, max: 6.5,  wc: 6.7,  wp: 17.5, tp: 30 },
+  { kg: 6,  label: '6 kg',  tare: 5.0, max: 11.0, wc: 13.4, wp: 17.5, tp: 30 },
 ];
 const LPG_VALVE_TYPES = ['POL Valve (KGV-S)', 'POL Valve (KGV-L)', 'CGA-510 Valve', 'BS 341-3 Valve'];
 const LPG_COUNTRIES   = ['Kenya', 'India', 'China', 'Turkey', 'South Africa'];
@@ -189,19 +187,23 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
     const next = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 4294967296; };
     const fmt2 = (n: number) => String(n).padStart(2, '0');
 
+    // Only 3 kg and 6 kg cylinders; counts: 3kg→35-44, 6kg→50-59
     LPG_SIZES.forEach((sz, szi) => {
-      const count = [28, 42, 18, 8][szi] + Math.floor(next() * 10);
+      const count = [35, 50][szi] + Math.floor(next() * 10);
       for (let c = 0; c < count; c++) {
         const brand     = LPG_BRANDS[Math.floor(next() * LPG_BRANDS.length)];
         const plant     = LPG_FILLING_PLANTS[Math.floor(next() * LPG_FILLING_PLANTS.length)];
         const valveType = LPG_VALVE_TYPES[Math.floor(next() * LPG_VALVE_TYPES.length)];
         const country   = LPG_COUNTRIES[Math.floor(next() * LPG_COUNTRIES.length)];
-        const statusR   = next();
-        const status    = statusR < 0.60 ? 'full' : statusR < 0.85 ? 'empty' : 'in-use';
+        const status    = next() < 0.62 ? 'full' : 'empty';   // no 'in-use'
         const mfgYear   = 2018 + Math.floor(next() * 7);
         const mfgMonth  = 1 + Math.floor(next() * 12);
+        // Date of issuance / last revalidation (independent of manufacture)
+        const issueYear = 2020 + Math.floor(next() * 5);       // 2020-2024
+        const issueMon  = 1 + Math.floor(next() * 12);
+        const issueDay  = 1 + Math.floor(next() * 27);
         const fillDay   = 1 + Math.floor(next() * 25);
-        const fillMon   = 1 + Math.floor(next() * 2);   // Jan or Feb 2026
+        const fillMon   = 1 + Math.floor(next() * 2);          // Jan or Feb 2026
         const fillHH    = 6  + Math.floor(next() * 10);
         const fillMM    = Math.floor(next() * 60);
         const dispHH    = 14 + Math.floor(next() * 5);
@@ -209,10 +211,11 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
         const recvHH    = 7  + Math.floor(next() * 8);
         const recvMM    = Math.floor(next() * 60);
 
-        const sizeCode    = sz.kg === 22.5 ? '225' : String(sz.kg).padStart(2, '0');
+        const sizeCode    = String(sz.kg).padStart(2, '0');
         const rfid        = `RFID-KE-${fmt2(si+1)}-${sizeCode}-${String(c+1).padStart(4,'0')}`;
         const serial      = `CYL-${brand.substring(0,2).toUpperCase()}-${mfgYear}-${String(si*1000+szi*200+c+1).padStart(5,'0')}`;
         const valveSerial = `VLV-${fmt2(si+1)}${szi+1}-${String(c+1).padStart(4,'0')}`;
+        const kebsCertNo  = `KEBS/KS-836/${issueYear}/${String(Math.floor(next()*90000)+10000).padStart(5,'0')}`;
         const opId        = (pfx: string) => `${pfx}${String(Math.floor(next()*99)+1).padStart(3,'0')}`;
 
         const fillSeal = `FS-${plant.id}-${fmt2(fillMon)}2026-${String(c+1).padStart(4,'0')}`;
@@ -238,7 +241,7 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
             seq: 3, type: 'receive',
             date: `${fmt2(fillDay+1)}/${fmt2(fillMon)}/2026`, time: `${fmt2(recvHH)}:${fmt2(recvMM)}`,
             location: stn.name, locationId: stn.id, operatorId: opId('ATT-'),
-            stampCode: recvSeal, integrity: 'intact',
+            stampCode: recvSeal, integrity: 'verified',
             details: `Seal integrity check PASSED. ${sz.label} cylinder checked into stock at ${stn.name}.`,
           },
         ];
@@ -258,24 +261,26 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
           tareWeight: sz.tare, maxGrossWeight: sz.max, waterCapacity: sz.wc,
           workingPressure: sz.wp, testPressure: sz.tp,
           valveType, valveSerial, countryOfManufacture: country,
-          manufactureDate: `${fmt2(mfgMonth)}/${mfgYear}`,
-          nextTestDate:    `${fmt2(mfgMonth)}/${mfgYear + 5}`,
-          lastFillDate:    `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`,
+          manufactureDate:  `${fmt2(mfgMonth)}/${mfgYear}`,
+          nextTestDate:     `${fmt2(mfgMonth)}/${mfgYear + 5}`,
+          dateOfLastRefill: `${fmt2(fillDay)}/${fmt2(fillMon)}/2026`,
+          dateOfIssuance:   `${fmt2(issueDay)}/${fmt2(issueMon)}/${issueYear}`,
+          kebsCertNo,
           fillingPlant: plant.name, fillingPlantId: plant.id,
           status,
-          currentSealCode: stampChain[stampChain.length - 1].stampCode,
-          sealIntegrity: status === 'in-use' ? 'tampered' : 'intact',
+          refillStampSerial: fillSeal,   // fill stamp – shown only when status === 'full'
+          currentSealCode:   stampChain[stampChain.length - 1].stampCode,
           stampChain, stationId: stn.id,
         });
       }
     });
 
-    const summary: Record<number, { total: number; full: number; empty: number; inUse: number }> = {};
+    const summary: Record<number, { total: number; full: number; empty: number }> = {};
     LPG_SIZES.forEach(sz => {
       const s = cylinders.filter(c => c.sizeKg === sz.kg);
-      summary[sz.kg] = { total: s.length, full: s.filter(c => c.status === 'full').length, empty: s.filter(c => c.status === 'empty').length, inUse: s.filter(c => c.status === 'in-use').length };
+      summary[sz.kg] = { total: s.length, full: s.filter(c => c.status === 'full').length, empty: s.filter(c => c.status === 'empty').length };
     });
-    return { stationId: stn.id, cylinders, summary, lastAudit: `${String(8+si).padStart(2,'0')}/02/2026`, totalCylinders: cylinders.length };
+    return { stationId: stn.id, cylinders, summary, totalCylinders: cylinders.length };
   });
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -444,6 +449,7 @@ const FuelIntegrityApp = () => {
   const [lpgSizeFilter, setLpgSizeFilter] = useState<number | null>(null);
   const [stationTanks] = useState(() => generateStationTanks(gasStations));
   const [selectedStationLayout, setSelectedStationLayout] = useState<{ station: any; tankData: any } | null>(null);
+  const [cylinderListModal, setCylinderListModal] = useState<{ inv: any; stationName: string } | null>(null);
 
   const [transactions, setTransactions] = useState(generateSCTTransactions);
 
@@ -1517,6 +1523,106 @@ const FuelIntegrityApp = () => {
     </div>
   );
 
+  // ── CYLINDER LIST MODAL ──
+  const CylinderListModal = () => {
+    const [listSizeFilter, setListSizeFilter] = useState<number | null>(null);
+    const [listSearch, setListSearch] = useState('');
+    if (!cylinderListModal) return null;
+    const { inv, stationName } = cylinderListModal;
+    const shown = inv.cylinders.filter((c: any) => {
+      const matchSz = !listSizeFilter || c.sizeKg === listSizeFilter;
+      const q = listSearch.toLowerCase();
+      const matchQ = !q || c.rfid.toLowerCase().includes(q) || c.serial.toLowerCase().includes(q)
+        || c.brand.toLowerCase().includes(q) || c.kebsCertNo.toLowerCase().includes(q);
+      return matchSz && matchQ;
+    });
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setCylinderListModal(null)}>
+        <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="bg-gradient-to-r from-orange-600 to-amber-500 text-white p-4 rounded-t-lg flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5" />
+                  <span className="font-bold text-lg">LPG Cylinders</span>
+                  <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-sm">{inv.totalCylinders} total</span>
+                </div>
+                <p className="text-orange-100 text-sm mt-0.5">{stationName}</p>
+              </div>
+              <button onClick={() => setCylinderListModal(null)} className="text-white hover:text-orange-200"><X className="w-6 h-6" /></button>
+            </div>
+          </div>
+          {/* Controls */}
+          <div className="p-3 border-b flex-shrink-0 space-y-2">
+            <div className="flex gap-2">
+              <button onClick={() => setListSizeFilter(null)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${!listSizeFilter ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>All ({inv.totalCylinders})</button>
+              {LPG_SIZES.map(sz => (
+                <button key={sz.kg} onClick={() => setListSizeFilter(listSizeFilter === sz.kg ? null : sz.kg)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${listSizeFilter === sz.kg ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {sz.label} ({inv.summary[sz.kg]?.total ?? 0})
+                </button>
+              ))}
+            </div>
+            <input type="text" value={listSearch} onChange={e => setListSearch(e.target.value)}
+              placeholder="Search RFID, serial, brand, KEBS cert…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <p className="text-xs text-gray-500">{shown.length} cylinder{shown.length !== 1 ? 's' : ''}</p>
+          </div>
+          {/* List */}
+          <div className="overflow-y-auto flex-1 p-3 space-y-2">
+            {shown.map((cyl: any) => (
+              <div key={cyl.rfid} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs text-gray-500">{cyl.rfid}</span>
+                      <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold">{cyl.sizeLabel}</span>
+                    </div>
+                    <p className="text-xs font-mono text-gray-400 mt-0.5 truncate">{cyl.serial}</p>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 ${cyl.status === 'full' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {cyl.status.toUpperCase()}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  {[
+                    ['Brand',        cyl.brand],
+                    ['Capacity',     `${cyl.sizeKg} kg`],
+                    ['Last Refill',  cyl.dateOfLastRefill],
+                    ['Issued/Reval.',cyl.dateOfIssuance],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} className="flex gap-1 min-w-0">
+                      <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
+                      <span className="font-semibold text-gray-800 truncate">{val}</span>
+                    </div>
+                  ))}
+                  <div className="col-span-2 flex gap-1 min-w-0">
+                    <span className="text-gray-400 flex-shrink-0">KEBS Cert:</span>
+                    <span className="font-semibold text-gray-800 font-mono truncate">{cyl.kebsCertNo}</span>
+                  </div>
+                  {cyl.status === 'full' && (
+                    <div className="col-span-2 flex items-start gap-1.5 bg-green-50 rounded-lg p-2 border border-green-100 mt-1">
+                      <Shield className="w-3 h-3 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-xs text-green-700 font-semibold block">Refill Stamp Serial</span>
+                        <span className="font-mono text-xs text-green-800 break-all">{cyl.refillStampSerial}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => { setCylinderListModal(null); setSelectedCylinder(cyl); }}
+                  className="mt-2 text-xs text-orange-600 hover:underline font-semibold">
+                  View full details →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── STATION TANK LAYOUT MODAL ──
   const StationLayoutModal = () => {
     if (!selectedStationLayout) return null;
@@ -1756,13 +1862,10 @@ const FuelIntegrityApp = () => {
           </div>
 
           <div className="p-4 space-y-5">
-            {/* Status row */}
+            {/* Status row – no seal integrity sub-status */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`px-3 py-1 rounded-full text-sm font-bold ${cyl.status === 'full' ? 'bg-green-100 text-green-800' : cyl.status === 'empty' ? 'bg-gray-100 text-gray-700' : 'bg-orange-100 text-orange-800'}`}>
+              <span className={`px-3 py-1 rounded-full text-sm font-bold ${cyl.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
                 {cyl.status.toUpperCase()}
-              </span>
-              <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${cyl.sealIntegrity === 'intact' ? 'bg-green-50 text-green-700 border-green-200' : cyl.sealIntegrity === 'verified' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                <Shield className="w-3 h-3 inline mr-1" />Seal: {cyl.sealIntegrity.toUpperCase()}
               </span>
             </div>
 
@@ -1771,18 +1874,21 @@ const FuelIntegrityApp = () => {
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />KEBS / EPRA Registration (KS EAS 214)</p>
               <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
                 {([
-                  ['Brand Owner',            cyl.brand],
-                  ['Cylinder Serial No.',    cyl.serial],
-                  ['Nominal Fill Weight',    `${cyl.sizeKg} kg`],
-                  ['Tare Weight (TW)',       `${cyl.tareWeight} kg`],
-                  ['Max Gross Weight',       `${cyl.maxGrossWeight} kg`],
-                  ['Water Capacity (WC)',    `${cyl.waterCapacity} L`],
-                  ['Working Pressure',       `${cyl.workingPressure} bar`],
-                  ['Test Pressure',          `${cyl.testPressure} bar`],
-                  ['Gas Type',               'LPG (Butane / Propane Mix)'],
-                  ['Country of Manufacture', cyl.countryOfManufacture],
-                  ['Date of Manufacture',    cyl.manufactureDate],
-                  ['Next Requalification',   cyl.nextTestDate],
+                  ['Brand Owner',              cyl.brand],
+                  ['Cylinder Serial No.',      cyl.serial],
+                  ['Capacity (kg)',             `${cyl.sizeKg} kg`],
+                  ['Tare Weight (TW)',          `${cyl.tareWeight} kg`],
+                  ['Max Gross Weight',          `${cyl.maxGrossWeight} kg`],
+                  ['Water Capacity (WC)',       `${cyl.waterCapacity} L`],
+                  ['Working Pressure',          `${cyl.workingPressure} bar`],
+                  ['Test Pressure',             `${cyl.testPressure} bar`],
+                  ['Gas Type',                  'LPG (Butane / Propane Mix)'],
+                  ['Country of Manufacture',    cyl.countryOfManufacture],
+                  ['Date of Manufacture',       cyl.manufactureDate],
+                  ['Next Requalification',      cyl.nextTestDate],
+                  ['Date of Last Refill',       cyl.dateOfLastRefill],
+                  ['Date of Issuance / Reval.', cyl.dateOfIssuance],
+                  ['KEBS Certification No.',    cyl.kebsCertNo],
                 ] as [string, string][]).map(([lbl, val]) => (
                   <div key={lbl} className="flex justify-between gap-2">
                     <span className="text-gray-500 flex-shrink-0">{lbl}</span>
@@ -1792,17 +1898,24 @@ const FuelIntegrityApp = () => {
               </div>
             </div>
 
-            {/* RFID Tag & Valve Seal */}
+            {/* Refill stamp serial – only for full cylinders */}
+            {cyl.status === 'full' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Secure Refill Stamp Serial</p>
+                <p className="font-mono text-sm text-green-800 break-all">{cyl.refillStampSerial}</p>
+              </div>
+            )}
+
+            {/* RFID Tag & Valve */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><Tag className="w-3.5 h-3.5" />RFID Tag &amp; Valve Seal</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><Tag className="w-3.5 h-3.5" />RFID Tag &amp; Valve</p>
               <div className="bg-blue-50 rounded-lg p-3 space-y-1.5 text-sm">
                 {([
-                  ['RFID Tag ID',       cyl.rfid],
-                  ['Valve Type',        cyl.valveType],
-                  ['Valve Serial No.',  cyl.valveSerial],
-                  ['Filling Plant',     cyl.fillingPlant],
-                  ['Last Fill Date',    cyl.lastFillDate],
-                  ['Active Seal Code',  cyl.currentSealCode],
+                  ['RFID Tag ID',      cyl.rfid],
+                  ['Valve Type',       cyl.valveType],
+                  ['Valve Serial No.', cyl.valveSerial],
+                  ['Filling Plant',    cyl.fillingPlant],
+                  ['Active Seal Code', cyl.currentSealCode],
                 ] as [string, string][]).map(([lbl, val]) => (
                   <div key={lbl} className="flex justify-between gap-2">
                     <span className="text-gray-500 flex-shrink-0">{lbl}</span>
@@ -1825,7 +1938,6 @@ const FuelIntegrityApp = () => {
                     <div className="pb-4 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stampStyle[ev.type] || 'bg-gray-100 text-gray-600'}`}>{stampLabel[ev.type] || ev.type}</span>
-                        <span className={`text-xs font-semibold ${ev.integrity === 'verified' ? 'text-blue-600' : ev.integrity === 'intact' ? 'text-green-600' : 'text-red-600'}`}>● {ev.integrity.toUpperCase()}</span>
                       </div>
                       <p className="text-xs font-semibold text-gray-700">{ev.location}</p>
                       <p className="text-xs text-gray-500">{ev.date} at {ev.time} · {ev.operatorId}</p>
@@ -2183,6 +2295,74 @@ const FuelIntegrityApp = () => {
                     </button>
                   );
                 })()}
+                {!selectedLocation.id.startsWith('DEP') && (
+                  <div className="border-t pt-6"><h3 className="font-semibold text-gray-800 mb-2">Supply Depot</h3><div className="bg-gray-50 p-3 rounded"><p className="text-sm text-gray-600">{depots.find(d => d.id === selectedLocation.depot)?.name || 'N/A'}</p></div></div>
+                )}
+                {/* ── LPG CYLINDERS SECTION ── */}
+                {!selectedLocation.id.startsWith('DEP') && (() => {
+                  const inv = lpgInventories.find(i => i.stationId === selectedLocation.id);
+                  if (!inv) return null;
+                  return (
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><Flame className="w-5 h-5 text-orange-500" />LPG Cylinder Stock</h3>
+                      {/* Summary by size */}
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        {LPG_SIZES.map(sz => {
+                          const s = inv.summary[sz.kg];
+                          return (
+                            <div key={sz.kg} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-gray-800 text-sm">{sz.label}</span>
+                                <span className="text-lg font-black text-orange-600">{s.total}</span>
+                              </div>
+                              <div className="flex gap-2 text-xs mb-1.5">
+                                <span className="text-green-700 font-semibold">{s.full} full</span>
+                                <span className="text-gray-400">·</span>
+                                <span className="text-gray-500">{s.empty} empty</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${s.total > 0 ? (s.full / s.total) * 100 : 0}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={() => setCylinderListModal({ inv, stationName: selectedLocation.name })}
+                        className="w-full flex items-center justify-between bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl px-4 py-3 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Tag className="w-5 h-5 text-orange-500" />
+                          <span className="font-semibold text-orange-800 text-sm">View all {inv.totalCylinders} cylinders</span>
+                        </div>
+                        <span className="text-orange-500 text-lg">›</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+                {!selectedLocation.id.startsWith('DEP') && selectedLocation.inspection && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-green-600" />Inspection</h3>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 p-3 rounded"><p className="text-xs text-gray-600">Date of Last Inspection</p><p className="font-semibold text-gray-800">{selectedLocation.inspection.lastDate}</p></div>
+                        <div className={`p-3 rounded border-l-4 ${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'}`}><p className="text-xs text-gray-600 mb-1">Result</p><p className={`font-bold text-lg ${selectedLocation.inspection.result === 'PASS' ? 'text-green-700' : 'text-red-700'}`}>{selectedLocation.inspection.result}</p></div>
+                      </div>
+                      <button onClick={() => setShowInspectionReport(true)} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"><FileText className="w-5 h-5" />View Inspection Results</button>
+                      <a href={selectedLocation.inspection.footage} target="_blank" rel="noopener noreferrer" className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center justify-center gap-2 block text-center">
+                        <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                        Watch Inspection Footage
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {!selectedLocation.id.startsWith('DEP') && !selectedLocation.inspection && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400" />Inspection</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg text-center"><p className="text-gray-500 text-sm">No inspection records available for this station</p></div>
+                  </div>
+                )}
+                {/* ── CONTACT INFORMATION ── */}
                 <div className="border-t pt-6 space-y-4">
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" />Contact Information</h3>
                   <div className="space-y-3">
@@ -2193,7 +2373,7 @@ const FuelIntegrityApp = () => {
                     <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">Coordinates</p><p className="font-semibold text-gray-800 font-mono text-sm">{selectedLocation.coordinates}</p></div></div>
                   </div>
                 </div>
-                {/* Map */}
+                {/* ── LOCATION MAP ── */}
                 {selectedLocation.coordinates && (() => {
                   const [lat, lng] = selectedLocation.coordinates.split(',').map((c: string) => c.trim());
                   return (
@@ -2220,108 +2400,6 @@ const FuelIntegrityApp = () => {
                     </div>
                   );
                 })()}
-                {!selectedLocation.id.startsWith('DEP') && (
-                  <div className="border-t pt-6"><h3 className="font-semibold text-gray-800 mb-2">Supply Depot</h3><div className="bg-gray-50 p-3 rounded"><p className="text-sm text-gray-600">{depots.find(d => d.id === selectedLocation.depot)?.name || 'N/A'}</p></div></div>
-                )}
-                {/* ── LPG CYLINDERS SECTION ── */}
-                {!selectedLocation.id.startsWith('DEP') && (() => {
-                  const inv = lpgInventories.find(i => i.stationId === selectedLocation.id);
-                  if (!inv) return null;
-                  const visibleCyls = lpgSizeFilter ? inv.cylinders.filter(c => c.sizeKg === lpgSizeFilter) : inv.cylinders;
-                  return (
-                    <div className="border-t pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Flame className="w-5 h-5 text-orange-500" />LPG Cylinder Stock</h3>
-                        <span className="text-xs text-gray-500">Last audit: {inv.lastAudit}</span>
-                      </div>
-                      {/* Summary by size */}
-                      <div className="grid grid-cols-2 gap-2 mb-4">
-                        {LPG_SIZES.map(sz => {
-                          const s = inv.summary[sz.kg];
-                          return (
-                            <button key={sz.kg} onClick={() => setLpgSizeFilter(lpgSizeFilter === sz.kg ? null : sz.kg)}
-                              className={`p-3 rounded-lg border-2 text-left transition ${lpgSizeFilter === sz.kg ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-gray-50 hover:border-orange-300'}`}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-bold text-gray-800 text-sm">{sz.label}</span>
-                                <span className="text-lg font-black text-orange-600">{s.total}</span>
-                              </div>
-                              <div className="flex gap-2 text-xs mb-1.5">
-                                <span className="text-green-700 font-semibold">{s.full} full</span>
-                                <span className="text-gray-400">·</span>
-                                <span className="text-gray-500">{s.empty} empty</span>
-                                {s.inUse > 0 && <><span className="text-gray-400">·</span><span className="text-orange-600">{s.inUse} in-use</span></>}
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${s.total > 0 ? (s.full / s.total) * 100 : 0}%` }} />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {/* Filter label */}
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-gray-600">
-                          {lpgSizeFilter ? `${lpgSizeFilter} kg cylinders` : 'All cylinders'} — {visibleCyls.length} shown
-                        </p>
-                        {lpgSizeFilter && (
-                          <button onClick={() => setLpgSizeFilter(null)} className="text-xs text-orange-600 hover:underline">Show all</button>
-                        )}
-                      </div>
-                      {/* Cylinder list */}
-                      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                        {visibleCyls.map(cyl => (
-                          <button key={cyl.rfid} onClick={() => setSelectedCylinder(cyl)}
-                            className="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-orange-400 hover:bg-orange-50 transition text-left">
-                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                              <Flame className="w-4 h-4 text-orange-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-mono text-xs text-gray-500">{cyl.rfid}</span>
-                                <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{cyl.sizeLabel}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs font-semibold text-gray-700">{cyl.brand}</span>
-                                <span className="text-gray-300">·</span>
-                                <span className="font-mono text-xs text-gray-400 truncate">{cyl.serial}</span>
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cyl.status === 'full' ? 'bg-green-100 text-green-700' : cyl.status === 'empty' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
-                                {cyl.status}
-                              </span>
-                              <span className={`text-xs ${cyl.sealIntegrity === 'intact' ? 'text-green-600' : cyl.sealIntegrity === 'verified' ? 'text-blue-600' : 'text-red-600'}`}>
-                                ● {cyl.sealIntegrity}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-                {!selectedLocation.id.startsWith('DEP') && selectedLocation.inspection && (
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-green-600" />Inspection</h3>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gray-50 p-3 rounded"><p className="text-xs text-gray-600">Date of Last Inspection</p><p className="font-semibold text-gray-800">{selectedLocation.inspection.lastDate}</p></div>
-                        <div className={`p-3 rounded border-l-4 ${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'}`}><p className="text-xs text-gray-600 mb-1">Result</p><p className={`font-bold text-lg ${selectedLocation.inspection.result === 'PASS' ? 'text-green-700' : 'text-red-700'}`}>{selectedLocation.inspection.result}</p></div>
-                      </div>
-                      <button onClick={() => setShowInspectionReport(true)} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"><FileText className="w-5 h-5" />View Inspection Results</button>
-                      <a href={selectedLocation.inspection.footage} target="_blank" rel="noopener noreferrer" className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center justify-center gap-2 block text-center">
-                        <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                        Watch Inspection Footage
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {!selectedLocation.id.startsWith('DEP') && !selectedLocation.inspection && (
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400" />Inspection</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center"><p className="text-gray-500 text-sm">No inspection records available for this station</p></div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -3344,6 +3422,7 @@ const FuelIntegrityApp = () => {
         </div>
       )}
 
+      <CylinderListModal />
       <StationLayoutModal />
       <LpgCylinderModal />
       {currentView === 'dashboard' && hasAccess('dashboard') && <DashboardView />}
