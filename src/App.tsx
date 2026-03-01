@@ -195,9 +195,9 @@ function generateLpgInventories(stations: { id: string; name: string; location: 
     const next = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 4294967296; };
     const fmt2 = (n: number) => String(n).padStart(2, '0');
 
-    // Only 3 kg and 6 kg cylinders; counts: 3kg→35-44, 6kg→50-59
+    // Only 3 kg and 6 kg cylinders; counts: 3kg→7-11, 6kg→9-13 (total ≤ 25 per station)
     LPG_SIZES.forEach((sz, szi) => {
-      const count = [35, 50][szi] + Math.floor(next() * 10);
+      const count = [7, 9][szi] + Math.floor(next() * 5);
       for (let c = 0; c < count; c++) {
         const brand     = LPG_BRANDS[Math.floor(next() * LPG_BRANDS.length)];
         const plant     = LPG_FILLING_PLANTS[Math.floor(next() * LPG_FILLING_PLANTS.length)];
@@ -1611,10 +1611,9 @@ const FuelIntegrityApp = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   {[
-                    ['Brand',        cyl.brand],
-                    ['Capacity',     `${cyl.sizeKg} kg`],
-                    ['Last Refill',  cyl.dateOfLastRefill],
-                    ['Issued/Reval.',cyl.dateOfIssuance],
+                    ['Brand',       cyl.brand],
+                    ['Capacity',    `${cyl.sizeKg} kg`],
+                    ['Last Refill', cyl.dateOfLastRefill],
                   ].map(([lbl, val]) => (
                     <div key={lbl} className="flex gap-1 min-w-0">
                       <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
@@ -2319,39 +2318,40 @@ const FuelIntegrityApp = () => {
               </div>
               <div className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <p className="text-xs text-gray-600 mb-2">Current Stock</p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <p className="text-2xl font-bold text-blue-600 whitespace-nowrap">{selectedLocation.current.toLocaleString()} L</p>
-                      {(() => {
-                        if (!selectedLocation.id.startsWith('DEP')) {
-                          const td = stationTanks.find(t => t.stationId === selectedLocation.id);
-                          if (!td) return null;
-                          return (
-                            <div className="flex gap-2 flex-wrap border-l border-blue-200 pl-3">
-                              {td.tanks.map((tk: any) => (
-                                <span key={tk.id} className="text-xs bg-blue-100 px-2 py-0.5 rounded-full text-blue-800">
-                                  <span className="text-blue-500">{tk.fuelType}:</span> <span className="font-semibold">{tk.current.toLocaleString()} L</span>
-                                </span>
-                              ))}
-                            </div>
-                          );
-                        }
-                        const sd = stockData.find(s => s.location === selectedLocation.name);
-                        return sd ? (
-                          <div className="flex gap-2 flex-wrap border-l border-blue-200 pl-3">
-                            <span className="text-xs bg-yellow-100 px-2 py-0.5 rounded-full text-yellow-800"><span className="text-yellow-600">Diesel:</span> <span className="font-semibold">{sd.diesel.toLocaleString()} L</span></span>
-                            <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full text-orange-800"><span className="text-orange-600">Gasoline:</span> <span className="font-semibold">{sd.gasoline.toLocaleString()} L</span></span>
-                            <span className="text-xs bg-cyan-100 px-2 py-0.5 rounded-full text-cyan-800"><span className="text-cyan-600">Kerosene:</span> <span className="font-semibold">{sd.kerosene.toLocaleString()} L</span></span>
-                          </div>
-                        ) : null;
-                      })()}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-xs text-gray-600 mb-1">Current Stock</p>
+                      <p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-xs text-gray-600 mb-1">Capacity</p>
+                      <p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p>
                     </div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg flex items-center justify-between">
-                    <p className="text-xs text-gray-600">Capacity</p>
-                    <p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p>
-                  </div>
+                  {/* Fuel type breakdown */}
+                  {(() => {
+                    if (!selectedLocation.id.startsWith('DEP')) {
+                      const td = stationTanks.find(t => t.stationId === selectedLocation.id);
+                      if (!td) return null;
+                      return (
+                        <div className="flex gap-2 flex-wrap px-1">
+                          {td.tanks.map((tk: any) => (
+                            <span key={tk.id} className="text-xs bg-blue-100 px-2 py-0.5 rounded-full text-blue-800">
+                              <span className="text-blue-500">{tk.fuelType}:</span> <span className="font-semibold">{tk.current.toLocaleString()} L</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    const sd = stockData.find(s => s.location === selectedLocation.name);
+                    return sd ? (
+                      <div className="flex gap-2 flex-wrap px-1">
+                        <span className="text-xs bg-yellow-100 px-2 py-0.5 rounded-full text-yellow-800"><span className="text-yellow-600">Diesel:</span> <span className="font-semibold">{sd.diesel.toLocaleString()} L</span></span>
+                        <span className="text-xs bg-orange-100 px-2 py-0.5 rounded-full text-orange-800"><span className="text-orange-600">Gasoline:</span> <span className="font-semibold">{sd.gasoline.toLocaleString()} L</span></span>
+                        <span className="text-xs bg-cyan-100 px-2 py-0.5 rounded-full text-cyan-800"><span className="text-cyan-600">Kerosene:</span> <span className="font-semibold">{sd.kerosene.toLocaleString()} L</span></span>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-blue-600 h-3 rounded-full" style={{ width: `${(selectedLocation.current / selectedLocation.capacity) * 100}%` }} /></div>
                 {/* Tank Layout button – stations only */}
