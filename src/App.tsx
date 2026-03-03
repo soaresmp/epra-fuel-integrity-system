@@ -5,6 +5,7 @@ import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, 
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
 import CargoTrackingView from './CargoTracking';
+import { translations, langLabels, Lang } from './i18n';
 
 // ─── SCT / CARGO-TRACKING SHARED FLEET DATA ──────────────────────────────────
 // These constants mirror CargoTracking.tsx exactly so every SCT transaction maps
@@ -437,6 +438,15 @@ const FuelIntegrityApp = () => {
       inspector: { dashboard: true, sct: true, wsm: true, incidents: true, reports: true, tracking: true },
     };
   });
+  // ── LANGUAGE ──
+  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('epra_lang') as Lang) || 'en');
+  useEffect(() => { localStorage.setItem('epra_lang', lang); }, [lang]);
+  const t = (key: string, vars?: Record<string, string | number>): string => {
+    let s = translations[lang]?.[key] ?? translations.en[key] ?? key;
+    if (vars) Object.entries(vars).forEach(([k, v]) => { s = s.replace(`{${k}}`, String(v)); });
+    return s;
+  };
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -743,13 +753,23 @@ const FuelIntegrityApp = () => {
             <Fuel className="w-12 h-12 text-white" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">Fuel Integrity</h1>
-        <h2 className="text-xl font-bold text-center text-green-700 mb-6">Management System</h2>
+        <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">{t('login.title1')}</h1>
+        <h2 className="text-xl font-bold text-center text-green-700 mb-4">{t('login.title2')}</h2>
+        {/* Language picker */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          {(Object.keys(langLabels) as Lang[]).map(l => (
+            <button key={l} onClick={() => setLang(l)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${lang === l ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'}`}>
+              <span>{langLabels[l].flag}</span>
+              <span className="hidden sm:inline">{langLabels[l].label}</span>
+            </button>
+          ))}
+        </div>
         <div className="space-y-4">
-          <button onClick={() => handleLogin('admin')} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Login as Administrator</button>
-          <button onClick={() => handleLogin('operator')} className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">Login as Depot Operator</button>
-          <button onClick={() => handleLogin('station_operator')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Login as Station Operator</button>
-          <button disabled className="w-full bg-gray-400 text-white py-3 rounded-lg font-semibold cursor-not-allowed opacity-60">Login as Inspector</button>
+          <button onClick={() => handleLogin('admin')} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">{t('login.admin')}</button>
+          <button onClick={() => handleLogin('operator')} className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">{t('login.depot')}</button>
+          <button onClick={() => handleLogin('station_operator')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">{t('login.station')}</button>
+          <button disabled className="w-full bg-gray-400 text-white py-3 rounded-lg font-semibold cursor-not-allowed opacity-60">{t('login.inspector')}</button>
         </div>
         <div className="mt-6 pt-6 border-t">
           <div className="flex items-center justify-between">
@@ -768,59 +788,59 @@ const FuelIntegrityApp = () => {
   const DashboardView = () => (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
+        <h2 className="text-2xl font-bold text-gray-800">{t('dash.title')}</h2>
         <div className="text-right">
-          <p className="text-xs text-gray-500">Logged in as</p>
+          <p className="text-xs text-gray-500">{t('dash.loggedAs')}</p>
           <p className="text-sm font-semibold text-green-700">{currentUser?.name}</p>
         </div>
       </div>
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3">National Stock Level</h3>
+        <h3 className="font-semibold text-gray-800 mb-3">{t('dash.nationalStock')}</h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-600">
-            <p className="text-xs text-gray-600">Diesel (L)</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-600">{t('dash.diesel')}</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p>
           </div>
           <div className="bg-amber-50 p-3 rounded-lg border-l-4 border-amber-600">
-            <p className="text-xs text-gray-600">Gasoline (L)</p><p className="text-lg font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-600">{t('dash.gasoline')}</p><p className="text-lg font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p>
           </div>
           <div className="bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-600">
-            <p className="text-xs text-gray-600">Kerosene (L)</p><p className="text-lg font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-600">{t('dash.kerosene')}</p><p className="text-lg font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
           </div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Transactions</p><p className="text-2xl font-bold text-green-600">{transactions.filter(t => t.status === 'in-transit').length}</p></div><Truck className="w-8 h-8 text-green-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.activeTx')}</p><p className="text-2xl font-bold text-green-600">{transactions.filter(tx => tx.status === 'in-transit').length}</p></div><Truck className="w-8 h-8 text-green-600" /></div>
         </div>
         <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Completed Today</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(t => t.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.completedToday')}</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(tx => tx.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Active Incidents</p><p className="text-2xl font-bold text-red-600">{incidents.filter(i => i.status === 'open').length}</p></div><AlertCircle className="w-8 h-8 text-red-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.activeIncidents')}</p><p className="text-2xl font-bold text-red-600">{incidents.filter(i => i.status === 'open').length}</p></div><AlertCircle className="w-8 h-8 text-red-600" /></div>
         </div>
         <div className="bg-indigo-50 p-4 rounded-lg border-l-4 border-indigo-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Fuel Depots</p><p className="text-2xl font-bold text-indigo-600">{depots.length}</p></div><Building2 className="w-8 h-8 text-indigo-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.fuelDepots')}</p><p className="text-2xl font-bold text-indigo-600">{depots.length}</p></div><Building2 className="w-8 h-8 text-indigo-600" /></div>
         </div>
         <div className="bg-teal-50 p-4 rounded-lg border-l-4 border-teal-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Fuel Stations</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.fuelStations')}</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
         </div>
         <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Monthly Inspections</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.monthlyInsp')}</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
         </div>
         <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Market Compliance</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.compliance')}</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
         </div>
       </div>
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-800">Recent Transactions</h3>
+          <h3 className="font-semibold text-gray-800">{t('dash.recentTx')}</h3>
           <button
             onClick={() => setCurrentView('sct')}
             className="text-xs text-green-600 hover:text-green-800 font-semibold flex items-center gap-1"
           >
-            View all {transactions.length} →
+            {t('dash.viewAll')} {transactions.length} →
           </button>
         </div>
         {transactions.slice(0, 3).map(txn => (
@@ -844,7 +864,7 @@ const FuelIntegrityApp = () => {
           <div className="sticky top-0 bg-gradient-to-r from-green-700 to-green-600 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-lg">Consignment Detail</h3>
+                <h3 className="font-bold text-lg">{t('cons.detail')}</h3>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-green-100 text-sm">{txn.id}</p>
                   {(txn as any).truckId && (
@@ -883,7 +903,7 @@ const FuelIntegrityApp = () => {
             {/* Status Banner */}
             <div className={`flex items-center gap-2 p-3 rounded-lg ${txn.status === 'completed' ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
               {txn.status === 'completed' ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-yellow-600" />}
-              <span className={`font-semibold text-sm ${txn.status === 'completed' ? 'text-green-800' : 'text-yellow-800'}`}>{txn.status === 'completed' ? 'Transfer Completed' : 'In Transit'}</span>
+              <span className={`font-semibold text-sm ${txn.status === 'completed' ? 'text-green-800' : 'text-yellow-800'}`}>{txn.status === 'completed' ? t('cons.transferDone') : t('cons.inTransit')}</span>
             </div>
 
             {/* Confirm Delivery Button for in-transit consignments */}
@@ -893,31 +913,31 @@ const FuelIntegrityApp = () => {
                 className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"
               >
                 <ClipboardCheck className="w-5 h-5" />
-                Confirm Delivery
+                {t('cons.confirmDelivery')}
               </button>
             )}
 
             {/* Tab Navigation */}
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Consignment</button>
-              <button onClick={() => setDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Transport Details</button>
+              <button onClick={() => setDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{t('cons.consignment')}</button>
+              <button onClick={() => setDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${detailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{t('cons.transport')}</button>
             </div>
 
             {detailTab === 'details' && (
               <>
                 {/* Transfer Route */}
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.route')}</h4>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 text-center">
                       <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                      <p className="text-xs text-gray-500">Source Depot</p>
+                      <p className="text-xs text-gray-500">{t('cons.sourceDepot')}</p>
                       <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
                     </div>
                     <div className="text-green-600 font-bold text-lg">&rarr;</div>
                     <div className="flex-1 text-center">
                       <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                      <p className="text-xs text-gray-500">Destination</p>
+                      <p className="text-xs text-gray-500">{t('cons.destination')}</p>
                       <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
                     </div>
                   </div>
@@ -925,23 +945,23 @@ const FuelIntegrityApp = () => {
 
                 {/* Fuel & Loading Information */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel & Loading Information</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.fuelLoading')}</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.productType')}</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.volumeLoaded')}</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.temperature')}</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.density')}</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.loadingBay')}</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.compartments')}</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
                   </div>
                 </div>
 
                 {/* Fuel Marking Details */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel Marking Details</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.fuelMarking')}</h4>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Type</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Batch Number</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.markerType')}</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.batchNo')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
                   </div>
                 </div>
 
@@ -955,7 +975,7 @@ const FuelIntegrityApp = () => {
                   <div className="space-y-3">
                     {(txn as any).truckId && (
                       <div className="flex items-center justify-between border-b pb-2">
-                        <span className="text-sm text-gray-600">Tracking Unit</span>
+                        <span className="text-sm text-gray-600">{t('cons.trackingUnit')}</span>
                         <button
                           onClick={() => { setSelectedTransaction(null); setCurrentView('tracking'); }}
                           className="font-semibold text-sm font-mono text-blue-700 hover:text-blue-900 flex items-center gap-1"
@@ -964,28 +984,28 @@ const FuelIntegrityApp = () => {
                         </button>
                       </div>
                     )}
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle / Plate</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.vehicle')}</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.driver')}</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.driverLicense')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.transporter')}</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
                   </div>
                 </div>
 
                 {/* Seal Numbers */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.seals')}</h4>
                   <div className="grid grid-cols-1 gap-3">
-                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.loadingSeal')}</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
                   </div>
                 </div>
 
                 <div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Datetime</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">GPS at Loading</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Approved By</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.loadingDatetime')}</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.expectedDelivery')}</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.loadingTicket')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.gps')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.approvedBy')}</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
                   </div>
                 </div>
               </>
@@ -1008,7 +1028,7 @@ const FuelIntegrityApp = () => {
           <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-6 rounded-t-lg text-center">
               <CheckCircle className="w-16 h-16 mx-auto mb-3" />
-              <h3 className="font-bold text-xl">Delivery Registered</h3>
+              <h3 className="font-bold text-xl">{t('del.registered')}</h3>
               <p className="text-green-100 mt-1">Transaction {txn.id} confirmed</p>
             </div>
             <div className="p-6 space-y-4">
@@ -1018,11 +1038,11 @@ const FuelIntegrityApp = () => {
                   <div><p className="text-xs text-gray-500">Status</p><p className="font-semibold text-green-700">Delivered</p></div>
                   <div><p className="text-xs text-gray-500">Volume</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
                   <div><p className="text-xs text-gray-500">Product</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                  <div className="col-span-2"><p className="text-xs text-gray-500">Delivered To</p><p className="font-semibold text-gray-800">{txn.to}</p></div>
-                  <div className="col-span-2"><p className="text-xs text-gray-500">Confirmed At</p><p className="font-semibold text-gray-800">{scanTime.toLocaleString()}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">{t('del.deliveredTo')}</p><p className="font-semibold text-gray-800">{txn.to}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-gray-500">{t('del.confirmedAt')}</p><p className="font-semibold text-gray-800">{scanTime.toLocaleString()}</p></div>
                 </div>
               </div>
-              <button onClick={() => { setDeliveryRegistration(null); setDeliveryConfirmed(false); }} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Done</button>
+              <button onClick={() => { setDeliveryRegistration(null); setDeliveryConfirmed(false); }} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">{t('del.done')}</button>
             </div>
           </div>
         </div>
@@ -1035,8 +1055,8 @@ const FuelIntegrityApp = () => {
           <div className="sticky top-0 bg-gradient-to-r from-yellow-500 to-yellow-400 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-lg">Register Delivery</h3>
-                <p className="text-yellow-100 text-sm">{txn.id} — Confirm Receipt</p>
+                <h3 className="font-bold text-lg">{t('del.register')}</h3>
+                <p className="text-yellow-100 text-sm">{txn.id} — {t('del.confirmReceipt')}</p>
               </div>
               <button onClick={() => setDeliveryRegistration(null)} className="text-white hover:text-yellow-200"><X className="w-6 h-6" /></button>
             </div>
@@ -1050,17 +1070,17 @@ const FuelIntegrityApp = () => {
 
             {/* Transfer Route */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.route')}</h4>
               <div className="flex items-center gap-3">
                 <div className="flex-1 text-center">
                   <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Source Depot</p>
+                  <p className="text-xs text-gray-500">{t('cons.sourceDepot')}</p>
                   <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
                 </div>
                 <div className="text-green-600 font-bold text-lg">→</div>
                 <div className="flex-1 text-center">
                   <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Destination</p>
+                  <p className="text-xs text-gray-500">{t('cons.destination')}</p>
                   <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
                 </div>
               </div>
@@ -1068,46 +1088,46 @@ const FuelIntegrityApp = () => {
 
             {/* Consignment Details */}
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Consignment Details</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('del.consDetails')}</h4>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Vehicle</p><p className="font-semibold text-gray-800">{txn.vehicle}</p></div>
-                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Driver</p><p className="font-semibold text-gray-800">{txn.driver}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.productType')}</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.volumeLoaded')}</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('del.vehicle')}</p><p className="font-semibold text-gray-800">{txn.vehicle}</p></div>
+                <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.driver')}</p><p className="font-semibold text-gray-800">{txn.driver}</p></div>
               </div>
             </div>
 
             {/* Seal & Marker Verification */}
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal & Marker Verification</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('del.sealMarker')}</h4>
               <div className="space-y-3">
                 <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500">Loading Seal Number</p>
+                  <p className="text-xs text-gray-500">{t('del.loadingSeal')}</p>
                   <p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p>
                 </div>
                 <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Batch</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('del.markerBatch')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.loadingTicket')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
                 </div>
               </div>
             </div>
 
             {/* Scan Metadata */}
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Scan Metadata</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('del.scanMeta')}</h4>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Scanned At</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
-                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">Expected Delivery</span><span className="font-semibold text-gray-800">{txn.expectedDelivery}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Received By</span><span className="font-semibold text-gray-800">{currentUser?.name}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">{t('del.scannedAt')}</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
+                <div className="flex items-center justify-between border-b pb-2"><span className="text-gray-600">{t('cons.expectedDelivery')}</span><span className="font-semibold text-gray-800">{txn.expectedDelivery}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">{t('del.receivedBy')}</span><span className="font-semibold text-gray-800">{currentUser?.name}</span></div>
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
               <button onClick={handleConfirmDelivery} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
-                <ClipboardCheck className="w-5 h-5" />Confirm Delivery
+                <ClipboardCheck className="w-5 h-5" />{t('cons.confirmDelivery')}
               </button>
               <button onClick={() => setDeliveryRegistration(null)} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
             </div>
@@ -1158,7 +1178,7 @@ const FuelIntegrityApp = () => {
           <div className="sticky top-0 bg-gradient-to-r from-green-700 to-green-600 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-lg">Consignment Detail</h3>
+                <h3 className="font-bold text-lg">{t('cons.detail')}</h3>
                 <p className="text-green-100 text-sm">{txn.id}</p>
               </div>
               <button onClick={handleCloseTransitLoad} className="text-white hover:text-green-200"><X className="w-6 h-6" /></button>
@@ -1180,25 +1200,25 @@ const FuelIntegrityApp = () => {
 
             {/* Tab Navigation */}
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setTransitDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Consignment</button>
-              <button onClick={() => setTransitDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Transport Details</button>
+              <button onClick={() => setTransitDetailTab('details')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'details' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{t('cons.consignment')}</button>
+              <button onClick={() => setTransitDetailTab('transport')} className={`flex-1 py-2 rounded-md font-semibold transition text-sm ${transitDetailTab === 'transport' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{t('cons.transport')}</button>
             </div>
 
             {transitDetailTab === 'details' && (
               <>
                 {/* Transfer Route */}
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Transfer Route</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.route')}</h4>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 text-center">
                       <Building2 className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                      <p className="text-xs text-gray-500">Source Depot</p>
+                      <p className="text-xs text-gray-500">{t('cons.sourceDepot')}</p>
                       <p className="font-semibold text-sm text-gray-800">{txn.from}</p>
                     </div>
                     <div className="text-green-600 font-bold text-lg">&rarr;</div>
                     <div className="flex-1 text-center">
                       <Store className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                      <p className="text-xs text-gray-500">Destination</p>
+                      <p className="text-xs text-gray-500">{t('cons.destination')}</p>
                       <p className="font-semibold text-sm text-gray-800">{txn.to}</p>
                     </div>
                   </div>
@@ -1206,23 +1226,23 @@ const FuelIntegrityApp = () => {
 
                 {/* Fuel & Loading Information */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel & Loading Information</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.fuelLoading')}</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Product Type</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
-                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Volume Loaded</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Temperature</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Density</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Bay</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
-                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">Compartment(s)</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.productType')}</p><p className="font-semibold text-gray-800">{txn.type}</p></div>
+                    <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.volumeLoaded')}</p><p className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.temperature')}</p><p className="font-semibold text-gray-800">{txn.temperature}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.density')}</p><p className="font-semibold text-gray-800">{txn.density}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.loadingBay')}</p><p className="font-semibold text-gray-800">{txn.loadingBay}</p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.compartments')}</p><p className="font-semibold text-gray-800">{txn.compartment}</p></div>
                   </div>
                 </div>
 
                 {/* Fuel Marking Details */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Fuel Marking Details</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.fuelMarking')}</h4>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Marker Type</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Batch Number</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.markerType')}</span><span className="font-semibold text-sm text-gray-800">{txn.markerType}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.batchNo')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.markerBatchNo}</span></div>
                   </div>
                 </div>
               </>
@@ -1233,28 +1253,28 @@ const FuelIntegrityApp = () => {
                 {/* Transport Details */}
                 <div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Vehicle</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Driver License</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Transporter</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.vehicle')}</span><span className="font-semibold text-sm text-gray-800">{txn.vehicle}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.driver')}</span><span className="font-semibold text-sm text-gray-800">{txn.driver}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.driverLicense')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.driverLicense}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.transporter')}</span><span className="font-semibold text-sm text-gray-800">{txn.transporter}</span></div>
                   </div>
                 </div>
 
                 {/* Seal Numbers */}
                 <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Seal Numbers</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{t('cons.seals')}</h4>
                   <div className="grid grid-cols-1 gap-3">
-                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">Loading Seal</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg"><p className="text-xs text-gray-500">{t('cons.loadingSeal')}</p><p className="font-semibold text-sm text-gray-800 font-mono">{txn.sealNumberLoading}</p></div>
                   </div>
                 </div>
 
                 <div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Datetime</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Expected Delivery</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">Loading Ticket</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
-                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">GPS at Loading</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Approved By</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.loadingDatetime')}</span><span className="font-semibold text-sm text-gray-800">{txn.date} {txn.time}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.expectedDelivery')}</span><span className="font-semibold text-sm text-gray-800">{txn.expectedDelivery}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.loadingTicket')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.loadingTicket}</span></div>
+                    <div className="flex items-center justify-between border-b pb-2"><span className="text-sm text-gray-600">{t('cons.gps')}</span><span className="font-semibold text-sm text-gray-800 font-mono">{txn.gpsLoading}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-gray-600">{t('cons.approvedBy')}</span><span className="font-semibold text-sm text-gray-800">{txn.approvedBy}</span></div>
                   </div>
                 </div>
               </>
@@ -1282,7 +1302,7 @@ const FuelIntegrityApp = () => {
           <div className="bg-gradient-to-r from-yellow-500 to-yellow-400 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-lg">Confirm Delivery</h3>
+                <h3 className="font-bold text-lg">{t('cons.confirmDelivery')}</h3>
                 <p className="text-yellow-100 text-sm">{txn.id}</p>
               </div>
               <button onClick={() => setScanDeliveryConfirm(null)} className="text-white hover:text-yellow-200"><X className="w-6 h-6" /></button>
@@ -1298,11 +1318,11 @@ const FuelIntegrityApp = () => {
               <div className="flex justify-between"><span className="text-gray-600">To</span><span className="font-semibold text-gray-800">{txn.to}</span></div>
               <div className="flex justify-between"><span className="text-gray-600">Vehicle</span><span className="font-semibold text-gray-800">{txn.vehicle}</span></div>
               <div className="flex justify-between"><span className="text-gray-600">Volume</span><span className="font-semibold text-gray-800">{txn.volume.toLocaleString()} L {txn.type}</span></div>
-              <div className="flex justify-between"><span className="text-gray-600">Scanned At</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">{t('del.scannedAt')}</span><span className="font-semibold text-gray-800">{scanTime.toLocaleString()}</span></div>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleConfirm} className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2">
-                <ClipboardCheck className="w-5 h-5" />Confirm Delivery
+                <ClipboardCheck className="w-5 h-5" />{t('cons.confirmDelivery')}
               </button>
               <button onClick={() => setScanDeliveryConfirm(null)} className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
             </div>
@@ -1340,7 +1360,7 @@ const FuelIntegrityApp = () => {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search plate, driver, ID…"
+              placeholder={t('sct.searchPlaceholder')}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 w-44"
             />
             <select
@@ -1348,14 +1368,14 @@ const FuelIntegrityApp = () => {
               onChange={e => setStatusFilter(e.target.value)}
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-green-500"
             >
-              <option value="all">All Status</option>
-              <option value="in-transit">In-Transit</option>
-              <option value="completed">Completed</option>
+              <option value="all">{t('sct.allStatus')}</option>
+              <option value="in-transit">{t('sct.inTransit')}</option>
+              <option value="completed">{t('sct.completed')}</option>
             </select>
           </div>
         </div>
         {visible.length === 0 && (
-          <div className="p-6 text-center text-gray-400 text-sm">No consignments match your search.</div>
+          <div className="p-6 text-center text-gray-400 text-sm">{t('sct.noMatch')}</div>
         )}
         {visible.map(txn => (
           <div
@@ -1407,7 +1427,7 @@ const FuelIntegrityApp = () => {
       <DeliveryRegistrationModal />
       <TransitLoadRegistrationModal />
       <ScanDeliveryConfirmModal />
-      <h2 className="text-2xl font-bold text-gray-800">Secure Custody Transfer</h2>
+      <h2 className="text-2xl font-bold text-gray-800">{t('sct.title')}</h2>
       {/* Cargo Tracking shortcut */}
       <button
         onClick={() => setCurrentView('tracking')}
@@ -1415,18 +1435,18 @@ const FuelIntegrityApp = () => {
       >
         <Navigation className="w-6 h-6 flex-shrink-0" />
         <div className="text-left">
-          <div className="font-bold text-sm">Cargo Tracking &amp; Monitoring</div>
-          <div className="text-xs text-green-100">Live map · 50+ trucks · Sensor telemetry · Integrity alerts</div>
+          <div className="font-bold text-sm">{t('sct.cargoTitle')}</div>
+          <div className="text-xs text-green-100">{t('sct.cargoSub')}</div>
         </div>
         <span className="ml-auto text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center gap-1">
-          <span className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />LIVE
+          <span className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />{t('sct.live')}
         </span>
       </button>
 
       {/* License Plate Consignment Lookup */}
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />Load Consignment</h3>
-        <p className="text-sm text-gray-500 mb-3">Enter the truck license plate number or scan the QR code to load a consignment.</p>
+        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Truck className="w-5 h-5 text-green-600" />{t('sct.loadConsignment')}</h3>
+        <p className="text-sm text-gray-500 mb-3">{t('sct.enterPlate')}</p>
         <div className="space-y-2">
           <div className="flex gap-2">
             <input
@@ -1445,7 +1465,7 @@ const FuelIntegrityApp = () => {
               className="bg-green-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0"
             >
               <Scan className="w-5 h-5" />
-              Search
+              {t('sct.search')}
             </button>
           </div>
           <button
@@ -1454,13 +1474,13 @@ const FuelIntegrityApp = () => {
             className="w-full bg-yellow-500 text-white px-5 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Camera className="w-5 h-5" />
-            Scan QR
+            {t('sct.scanQR')}
           </button>
         </div>
         {licensePlateLoading && (
           <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-semibold text-blue-800">Loading Consignment ...</span>
+            <span className="text-sm font-semibold text-blue-800">{t('sct.loading')}</span>
           </div>
         )}
         {licensePlateError && (
@@ -1468,7 +1488,7 @@ const FuelIntegrityApp = () => {
             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-red-700">{licensePlateError}</p>
-              <button onClick={() => setLicensePlateError(null)} className="mt-1 text-xs text-red-600 hover:text-red-800 underline">Dismiss</button>
+              <button onClick={() => setLicensePlateError(null)} className="mt-1 text-xs text-red-600 hover:text-red-800 underline">{t('sct.dismiss')}</button>
             </div>
           </div>
         )}
@@ -1478,9 +1498,9 @@ const FuelIntegrityApp = () => {
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-semibold text-red-800 mb-1">Scan Error</p>
+              <p className="font-semibold text-red-800 mb-1">{t('sct.scanError')}</p>
               <p className="text-sm text-red-700">{scannerError}</p>
-              <button onClick={() => setScannerError(null)} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">Dismiss</button>
+              <button onClick={() => setScannerError(null)} className="mt-2 text-sm text-red-600 hover:text-red-800 underline">{t('sct.dismiss')}</button>
             </div>
           </div>
         </div>
@@ -1490,7 +1510,7 @@ const FuelIntegrityApp = () => {
           <div className="flex items-start gap-3">
             <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-semibold text-green-800 mb-2">QR Code Scanned Successfully</p>
+              <p className="font-semibold text-green-800 mb-2">{t('sct.qrSuccess')}</p>
               <div className="bg-white p-3 rounded text-xs overflow-auto mb-3"><pre className="text-gray-700">{scannedData}</pre></div>
               <div className="flex gap-2">
                 <button onClick={() => {
@@ -1498,15 +1518,15 @@ const FuelIntegrityApp = () => {
                     const data = JSON.parse(scannedData);
                     const txnId = data.transactionId || data.txnId || data.id;
                     if (txnId) {
-                      setTransactions(prev => prev.map(t => t.id === txnId ? { ...t, status: 'completed' } : t));
+                      setTransactions(prev => prev.map(tx => tx.id === txnId ? { ...tx, status: 'completed' } : tx));
                     }
                   } catch {
                     // Try matching scannedData as a raw transaction ID
-                    setTransactions(prev => prev.map(t => t.id === scannedData.trim() ? { ...t, status: 'completed' } : t));
+                    setTransactions(prev => prev.map(tx => tx.id === scannedData.trim() ? { ...tx, status: 'completed' } : tx));
                   }
                   setScannedData(null);
-                }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-semibold">Confirm</button>
-                <button onClick={() => setScannedData(null)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
+                }} className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-semibold">{t('sct.confirm')}</button>
+                <button onClick={() => setScannedData(null)} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">{t('sct.cancel')}</button>
               </div>
             </div>
           </div>
@@ -1519,7 +1539,7 @@ const FuelIntegrityApp = () => {
   // ── INCIDENTS ──
   const IncidentsView = () => (
     <div className="p-4 space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800">Incidents & Alerts</h2>
+      <h2 className="text-2xl font-bold text-gray-800">{t('inc.title')}</h2>
       <div className="bg-white rounded-lg shadow">
         {incidents.map(inc => (
           <div key={inc.id} className="p-4 border-b last:border-b-0">
@@ -1537,7 +1557,7 @@ const FuelIntegrityApp = () => {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className={`px-2 py-0.5 rounded text-xs ${inc.status === 'open' ? 'bg-red-50 text-red-700' : inc.status === 'investigating' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}>{inc.status}</span>
-                  {inc.status !== 'resolved' && <button className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700">Investigate</button>}
+                  {inc.status !== 'resolved' && <button className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700">{t('inc.investigate')}</button>}
                 </div>
               </div>
             </div>
@@ -1569,8 +1589,8 @@ const FuelIntegrityApp = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <Flame className="w-5 h-5" />
-                  <span className="font-bold text-lg">LPG Cylinders</span>
-                  <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-sm">{inv.totalCylinders} total</span>
+                  <span className="font-bold text-lg">{t('lpg.cylinders')}</span>
+                  <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-sm">{inv.totalCylinders} {t('lpg.total')}</span>
                 </div>
                 <p className="text-orange-100 text-sm mt-0.5">{stationName}</p>
               </div>
@@ -1580,7 +1600,7 @@ const FuelIntegrityApp = () => {
           {/* Controls */}
           <div className="p-3 border-b flex-shrink-0 space-y-2">
             <div className="flex gap-2">
-              <button onClick={() => setListSizeFilter(null)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${!listSizeFilter ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>All ({inv.totalCylinders})</button>
+              <button onClick={() => setListSizeFilter(null)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${!listSizeFilter ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t('lpg.all')} ({inv.totalCylinders})</button>
               {LPG_SIZES.map(sz => (
                 <button key={sz.kg} onClick={() => setListSizeFilter(listSizeFilter === sz.kg ? null : sz.kg)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${listSizeFilter === sz.kg ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1589,7 +1609,7 @@ const FuelIntegrityApp = () => {
               ))}
             </div>
             <input type="text" value={listSearch} onChange={e => setListSearch(e.target.value)}
-              placeholder="Search RFID, serial, brand, KEBS cert…"
+              placeholder={t('lpg.searchPlaceholder')}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
             <p className="text-xs text-gray-500">{shown.length} cylinder{shown.length !== 1 ? 's' : ''}</p>
           </div>
@@ -1611,9 +1631,9 @@ const FuelIntegrityApp = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   {[
-                    ['Brand',       cyl.brand],
-                    ['Capacity',    `${cyl.sizeKg} kg`],
-                    ['Last Refill', cyl.dateOfLastRefill],
+                    [t('lpg.brand'),     cyl.brand],
+                    [t('lpg.capacity'),  `${cyl.sizeKg} kg`],
+                    [t('lpg.lastRefill'), cyl.dateOfLastRefill],
                   ].map(([lbl, val]) => (
                     <div key={lbl} className="flex gap-1 min-w-0">
                       <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
@@ -1621,14 +1641,14 @@ const FuelIntegrityApp = () => {
                     </div>
                   ))}
                   <div className="col-span-2 flex gap-1 min-w-0">
-                    <span className="text-gray-400 flex-shrink-0">KEBS Cert:</span>
+                    <span className="text-gray-400 flex-shrink-0">{t('lpg.kebsCert')}:</span>
                     <span className="font-semibold text-gray-800 font-mono truncate">{cyl.kebsCertNo}</span>
                   </div>
                   {cyl.status === 'full' && (
                     <div className="col-span-2 flex items-start gap-1.5 bg-green-50 rounded-lg p-2 border border-green-100 mt-1">
                       <Shield className="w-3 h-3 text-green-600 flex-shrink-0 mt-0.5" />
                       <div className="min-w-0">
-                        <span className="text-xs text-green-700 font-semibold block">Refill Stamp Serial</span>
+                        <span className="text-xs text-green-700 font-semibold block">{t('lpg.refillStamp')}</span>
                         <span className="font-mono text-xs text-green-800 break-all">{cyl.refillStampSerial}</span>
                       </div>
                     </div>
@@ -1636,7 +1656,7 @@ const FuelIntegrityApp = () => {
                 </div>
                 <button onClick={() => { setCylinderListModal(null); setCylinderModalTab('events'); setSelectedCylinder(cyl); }}
                   className="mt-2 text-xs text-orange-600 hover:underline font-semibold">
-                  View full details →
+                  {t('lpg.viewDetails')}
                 </button>
               </div>
             ))}
@@ -1679,7 +1699,7 @@ const FuelIntegrityApp = () => {
           <div className="sticky top-0 bg-gradient-to-r from-slate-800 to-slate-600 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-300 uppercase tracking-wide">Underground Tank Farm &amp; Gauging System</p>
+                <p className="text-xs text-slate-300 uppercase tracking-wide">{t('tank.title')}</p>
                 <h3 className="font-bold text-lg">{station.name}</h3>
                 <p className="text-slate-300 text-sm">{station.location} · {station.company}</p>
               </div>
@@ -1691,7 +1711,7 @@ const FuelIntegrityApp = () => {
             {/* SVG Cross-Section */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
-                <Activity className="w-3.5 h-3.5" />Cross-Section Schematic (Live Sensor Data)
+                <Activity className="w-3.5 h-3.5" />{t('tank.schematic')}
               </p>
               <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
                 <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full" style={{ display: 'block', height: 260 }}>
@@ -1767,7 +1787,7 @@ const FuelIntegrityApp = () => {
                   })}
 
                   {/* Legend */}
-                  {[['#22c55e','Online'],['#f59e0b','Warning'],['#ef4444','Offline']].map(([col,lbl], li) => (
+                  {[[`#22c55e`, t('wsm.online')],[`#f59e0b`, t('wsm.warning')],[`#ef4444`, t('wsm.offline')]].map(([col,lbl], li) => (
                     <g key={lbl}>
                       <circle cx={8 + li * 62} cy={SVG_H - 10} r="5" fill={col} />
                       <text x={16 + li * 62} y={SVG_H - 6} fill="#6b7280" fontSize="8" fontFamily="monospace">{lbl}</text>
@@ -1874,7 +1894,7 @@ const FuelIntegrityApp = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <Flame className="w-5 h-5" />
-                  <span className="font-bold text-lg">LPG Cylinder</span>
+                  <span className="font-bold text-lg">{t('lpg.cylinder')}</span>
                   <span className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-sm font-mono">{cyl.sizeLabel}</span>
                 </div>
                 <div className="flex items-center gap-1 mt-1">
@@ -1901,23 +1921,23 @@ const FuelIntegrityApp = () => {
 
             {/* KEBS / EPRA Registration */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />KEBS / EPRA Registration (KS EAS 214)</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{t('lpg.kebsReg')}</p>
               <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
                 {([
-                  ['Brand Owner',              cyl.brand],
-                  ['Cylinder Serial No.',      cyl.serial],
-                  ['Capacity (kg)',             `${cyl.sizeKg} kg`],
-                  ['Tare Weight (TW)',          `${cyl.tareWeight} kg`],
-                  ['Max Gross Weight',          `${cyl.maxGrossWeight} kg`],
-                  ['Water Capacity (WC)',       `${cyl.waterCapacity} L`],
-                  ['Working Pressure',          `${cyl.workingPressure} bar`],
-                  ['Test Pressure',             `${cyl.testPressure} bar`],
-                  ['Gas Type',                  'LPG (Butane / Propane Mix)'],
-                  ['Country of Manufacture',    cyl.countryOfManufacture],
-                  ['Date of Manufacture',       cyl.manufactureDate],
-                  ['Next Requalification',      cyl.nextTestDate],
-                  ['Date of Last Refill',    cyl.dateOfLastRefill],
-                  ['KEBS Certification No.', cyl.kebsCertNo],
+                  [t('lpg.brandOwner'),              cyl.brand],
+                  [t('lpg.serialNo'),      cyl.serial],
+                  [t('lpg.sizeKg'),             `${cyl.sizeKg} kg`],
+                  [t('lpg.tareWeight'),          `${cyl.tareWeight} kg`],
+                  [t('lpg.maxGross'),          `${cyl.maxGrossWeight} kg`],
+                  [t('lpg.waterCap'),       `${cyl.waterCapacity} L`],
+                  [t('lpg.workingPressure'),          `${cyl.workingPressure} bar`],
+                  [t('lpg.testPressure'),             `${cyl.testPressure} bar`],
+                  [t('lpg.gasType'),                  'LPG (Butane / Propane Mix)'],
+                  [t('lpg.country'),    cyl.countryOfManufacture],
+                  [t('lpg.mfgDate'),       cyl.manufactureDate],
+                  [t('lpg.nextReqal'),      cyl.nextTestDate],
+                  [t('lpg.lastRefillDate'),    cyl.dateOfLastRefill],
+                  [t('lpg.kebsCertNo'), cyl.kebsCertNo],
                 ] as [string, string][]).map(([lbl, val]) => (
                   <div key={lbl} className="flex justify-between gap-2">
                     <span className="text-gray-500 flex-shrink-0">{lbl}</span>
@@ -1930,21 +1950,21 @@ const FuelIntegrityApp = () => {
             {/* Refill stamp serial – only for full cylinders */}
             {cyl.status === 'full' && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Secure Refill Stamp Serial</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />{t('lpg.secureStamp')}</p>
                 <p className="font-mono text-sm text-green-800 break-all">{cyl.refillStampSerial}</p>
               </div>
             )}
 
             {/* RFID Tag & Valve */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><Tag className="w-3.5 h-3.5" />RFID Tag &amp; Valve</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1"><Tag className="w-3.5 h-3.5" />{t('lpg.rfidTag')}</p>
               <div className="bg-blue-50 rounded-lg p-3 space-y-1.5 text-sm">
                 {([
-                  ['RFID Tag ID',      cyl.rfid],
-                  ['Valve Type',       cyl.valveType],
-                  ['Valve Serial No.', cyl.valveSerial],
-                  ['Filling Plant',    cyl.fillingPlant],
-                  ['Active Seal Code', cyl.currentSealCode],
+                  [t('lpg.rfidId'),      cyl.rfid],
+                  [t('lpg.valveType'),       cyl.valveType],
+                  [t('lpg.valveSerial'), cyl.valveSerial],
+                  [t('lpg.fillingPlant'),    cyl.fillingPlant],
+                  [t('lpg.activeSeal'), cyl.currentSealCode],
                 ] as [string, string][]).map(([lbl, val]) => (
                   <div key={lbl} className="flex justify-between gap-2">
                     <span className="text-gray-500 flex-shrink-0">{lbl}</span>
@@ -1956,20 +1976,20 @@ const FuelIntegrityApp = () => {
 
             {/* Supply Chain Events – tabbed */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />Supply Chain Events</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1"><Shield className="w-3.5 h-3.5" />{t('lpg.supplyChain')}</p>
               {/* Tab bar */}
               <div className="flex border-b border-gray-200 mb-3">
                 <button
                   onClick={() => setCylinderModalTab('events')}
                   className={`flex-1 py-2 text-xs font-semibold border-b-2 transition ${cylinderModalTab === 'events' ? 'border-orange-500 text-orange-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 >
-                  Recent Events
+                  {t('lpg.recentEvents')}
                 </button>
                 <button
                   onClick={() => setCylinderModalTab('inspections')}
                   className={`flex-1 py-2 text-xs font-semibold border-b-2 transition ${cylinderModalTab === 'inspections' ? 'border-purple-500 text-purple-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 >
-                  Inspections {inspectionEvents.length > 0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${cylinderModalTab === 'inspections' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{inspectionEvents.length}</span>}
+                  {t('lpg.inspections')} {inspectionEvents.length > 0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${cylinderModalTab === 'inspections' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{inspectionEvents.length}</span>}
                 </button>
               </div>
               {/* Recent Events tab */}
@@ -1997,7 +2017,7 @@ const FuelIntegrityApp = () => {
                 <div>
                   {inspectionEvents.length === 0 ? (
                     <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-gray-400 text-xs">No inspection records for this cylinder</p>
+                      <p className="text-gray-400 text-xs">{t('lpg.noInspection')}</p>
                     </div>
                   ) : (
                     <div className="space-y-0">
@@ -2242,35 +2262,35 @@ const FuelIntegrityApp = () => {
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setShowInspectionReport(false)}>
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Fixed Location Test Report</h3>
+              <h3 className="font-bold text-lg">{t('insp.title')}</h3>
               <div className="flex items-center gap-2">
-                <button onClick={handlePrintReport} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition" title="Print Report"><Printer className="w-4 h-4" />Print</button>
-                <button onClick={generateInspectionPDF} className="flex items-center gap-1 text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition" title="Download PDF"><Download className="w-4 h-4" />PDF</button>
+                <button onClick={handlePrintReport} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition" title="Print Report"><Printer className="w-4 h-4" />{t('insp.print')}</button>
+                <button onClick={generateInspectionPDF} className="flex items-center gap-1 text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition" title="Download PDF"><Download className="w-4 h-4" />{t('insp.download')}</button>
                 <button onClick={() => setShowInspectionReport(false)} className="text-gray-500 hover:text-gray-700"><X className="w-6 h-6" /></button>
               </div>
             </div>
             <div className="p-4">
               <div className="bg-white p-6 rounded border text-left space-y-3">
                 <div className="border-b pb-3">
-                  <h4 className="font-bold text-lg mb-2">Fixed Location Test Report</h4>
+                  <h4 className="font-bold text-lg mb-2">{t('insp.title')}</h4>
                   <p className="text-sm text-gray-600">Test ID: {selectedLocation.id}-{selectedLocation.inspection.lastDate.replace(/\//g, '')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-xs text-gray-600">Station Name</p><p className="font-semibold">{selectedLocation.name}</p></div>
-                  <div><p className="text-xs text-gray-600">Operator</p><p className="font-semibold">{selectedLocation.company}</p></div>
-                  <div><p className="text-xs text-gray-600">Inspection Date</p><p className="font-semibold">{selectedLocation.inspection.lastDate}</p></div>
-                  <div><p className="text-xs text-gray-600">Result</p><p className={`font-bold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-600' : 'text-red-600'}`}>{selectedLocation.inspection.result}</p></div>
+                  <div><p className="text-xs text-gray-600">{t('insp.stationName')}</p><p className="font-semibold">{selectedLocation.name}</p></div>
+                  <div><p className="text-xs text-gray-600">{t('insp.operator')}</p><p className="font-semibold">{selectedLocation.company}</p></div>
+                  <div><p className="text-xs text-gray-600">{t('insp.inspDate')}</p><p className="font-semibold">{selectedLocation.inspection.lastDate}</p></div>
+                  <div><p className="text-xs text-gray-600">{t('wsm.result')}</p><p className={`font-bold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-600' : 'text-red-600'}`}>{selectedLocation.inspection.result}</p></div>
                 </div>
                 {/* Detailed Test Results Table */}
                 <div className="mt-4">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Test Results</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">{t('insp.testResults')}</h4>
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Test Parameter</th>
-                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Standard</th>
-                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Measured</th>
-                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">Status</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">{t('insp.parameter')}</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">{t('insp.standard')}</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">{t('insp.measured')}</th>
+                        <th className="text-left p-2 border border-gray-200 text-xs font-semibold text-gray-600">{t('insp.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2292,8 +2312,8 @@ const FuelIntegrityApp = () => {
                   </table>
                 </div>
                 <div className={`${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'} border-l-4 p-4 mt-4`}>
-                  <p className={`font-semibold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-800' : 'text-red-800'}`}>Compliance Status: {selectedLocation.inspection.result}</p>
-                  <p className="text-sm text-gray-600 mt-1">{selectedLocation.inspection.result === 'PASS' ? 'All fuel quality tests meet regulatory standards' : 'Non-compliance detected — corrective action required'}</p>
+                  <p className={`font-semibold ${selectedLocation.inspection.result === 'PASS' ? 'text-green-800' : 'text-red-800'}`}>{t('insp.compliance')} {selectedLocation.inspection.result}</p>
+                  <p className="text-sm text-gray-600 mt-1">{selectedLocation.inspection.result === 'PASS' ? t('insp.passMsg') : t('insp.failMsg')}</p>
                 </div>
               </div>
             </div>
@@ -2307,7 +2327,7 @@ const FuelIntegrityApp = () => {
         <InspectionReportModal />
         {selectedLocation ? (
           <div className="space-y-4">
-            <button onClick={() => setSelectedLocation(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />{currentView === 'wsm' ? 'Back to Wet Stock Management' : 'Back to Directory'}</button>
+            <button onClick={() => setSelectedLocation(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />{currentView === 'wsm' ? t('wsm.backToWSM') : t('wsm.backToDir')}</button>
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
                 <div className="flex items-start gap-3 mb-4">
@@ -2320,11 +2340,11 @@ const FuelIntegrityApp = () => {
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-xs text-gray-600 mb-1">Current Stock</p>
+                      <p className="text-xs text-gray-600 mb-1">{t('wsm.currentStock')}</p>
                       <p className="text-2xl font-bold text-blue-600">{selectedLocation.current.toLocaleString()} L</p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-xs text-gray-600 mb-1">Capacity</p>
+                      <p className="text-xs text-gray-600 mb-1">{t('wsm.capacity')}</p>
                       <p className="text-2xl font-bold text-green-600">{selectedLocation.capacity.toLocaleString()} L</p>
                     </div>
                   </div>
@@ -2366,10 +2386,10 @@ const FuelIntegrityApp = () => {
                     >
                       <Activity className="w-5 h-5 flex-shrink-0 text-slate-300" />
                       <div className="text-left flex-1">
-                        <p className="font-bold text-sm">View Tank Layout &amp; Sensor Data</p>
-                        <p className="text-xs text-slate-400">{td.tanks.length} underground tanks · ATG gauging system</p>
+                        <p className="font-bold text-sm">{t('wsm.tankLayout')}</p>
+                        <p className="text-xs text-slate-400">{`${td.tanks.length} ${t('wsm.undergroundTanks')}`}</p>
                       </div>
-                      {anyWarn && <span className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">Alert</span>}
+                      {anyWarn && <span className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">{t('wsm.alert')}</span>}
                       <span className="text-slate-400 text-sm">›</span>
                     </button>
                   );
@@ -2380,7 +2400,7 @@ const FuelIntegrityApp = () => {
                   if (!inv) return null;
                   return (
                     <div className="border-t pt-6">
-                      <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><Flame className="w-5 h-5 text-orange-500" />LPG Cylinder Stock</h3>
+                      <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><Flame className="w-5 h-5 text-orange-500" />{t('wsm.lpgStock')}</h3>
                       {/* Summary by size */}
                       <div className="grid grid-cols-2 gap-2 mb-4">
                         {LPG_SIZES.map(sz => {
@@ -2392,9 +2412,9 @@ const FuelIntegrityApp = () => {
                                 <span className="text-lg font-black text-orange-600">{s.total}</span>
                               </div>
                               <div className="flex gap-2 text-xs mb-1.5">
-                                <span className="text-green-700 font-semibold">{s.full} full</span>
+                                <span className="text-green-700 font-semibold">{s.full} {t('wsm.full')}</span>
                                 <span className="text-gray-400">·</span>
-                                <span className="text-gray-500">{s.empty} empty</span>
+                                <span className="text-gray-500">{s.empty} {t('wsm.empty')}</span>
                               </div>
                               <div className="w-full bg-gray-200 rounded-full h-1.5">
                                 <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${s.total > 0 ? (s.full / s.total) * 100 : 0}%` }} />
@@ -2409,7 +2429,7 @@ const FuelIntegrityApp = () => {
                       >
                         <div className="flex items-center gap-2">
                           <Tag className="w-5 h-5 text-orange-500" />
-                          <span className="font-semibold text-orange-800 text-sm">View all {inv.totalCylinders} cylinders</span>
+                          <span className="font-semibold text-orange-800 text-sm">{t('wsm.viewAllCylinders', { n: inv.totalCylinders })}</span>
                         </div>
                         <span className="text-orange-500 text-lg">›</span>
                       </button>
@@ -2418,35 +2438,35 @@ const FuelIntegrityApp = () => {
                 })()}
                 {!selectedLocation.id.startsWith('DEP') && selectedLocation.inspection && (
                   <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-green-600" />Inspection</h3>
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-green-600" />{t('wsm.inspection')}</h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gray-50 p-3 rounded"><p className="text-xs text-gray-600">Date of Last Inspection</p><p className="font-semibold text-gray-800">{selectedLocation.inspection.lastDate}</p></div>
-                        <div className={`p-3 rounded border-l-4 ${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'}`}><p className="text-xs text-gray-600 mb-1">Result</p><p className={`font-bold text-lg ${selectedLocation.inspection.result === 'PASS' ? 'text-green-700' : 'text-red-700'}`}>{selectedLocation.inspection.result}</p></div>
+                        <div className="bg-gray-50 p-3 rounded"><p className="text-xs text-gray-600">{t('wsm.lastInspDate')}</p><p className="font-semibold text-gray-800">{selectedLocation.inspection.lastDate}</p></div>
+                        <div className={`p-3 rounded border-l-4 ${selectedLocation.inspection.result === 'PASS' ? 'bg-green-50 border-green-600' : 'bg-red-50 border-red-600'}`}><p className="text-xs text-gray-600 mb-1">{t('wsm.result')}</p><p className={`font-bold text-lg ${selectedLocation.inspection.result === 'PASS' ? 'text-green-700' : 'text-red-700'}`}>{selectedLocation.inspection.result}</p></div>
                       </div>
-                      <button onClick={() => setShowInspectionReport(true)} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"><FileText className="w-5 h-5" />View Inspection Results</button>
+                      <button onClick={() => setShowInspectionReport(true)} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2"><FileText className="w-5 h-5" />{t('wsm.viewInspResults')}</button>
                       <a href={selectedLocation.inspection.footage} target="_blank" rel="noopener noreferrer" className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center justify-center gap-2 block text-center">
                         <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                        Watch Inspection Footage
+                        {t('wsm.watchFootage')}
                       </a>
                     </div>
                   </div>
                 )}
                 {!selectedLocation.id.startsWith('DEP') && !selectedLocation.inspection && (
                   <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400" />Inspection</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center"><p className="text-gray-500 text-sm">No inspection records available for this station</p></div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400" />{t('wsm.inspection')}</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg text-center"><p className="text-gray-500 text-sm">{t('wsm.noInspection')}</p></div>
                   </div>
                 )}
                 {/* ── CONTACT INFORMATION ── */}
                 <div className="border-t pt-6 space-y-4">
-                  <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" />Contact Information</h3>
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" />{t('wsm.contactInfo')}</h3>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3"><Users className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">Contact Person</p><p className="font-semibold text-gray-800">{selectedLocation.contact}</p></div></div>
-                    <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">📱</span><div><p className="text-sm text-gray-600">Phone</p><a href={`tel:${selectedLocation.phone}`} className="font-semibold text-blue-600">{selectedLocation.phone}</a></div></div>
-                    <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">✉️</span><div><p className="text-sm text-gray-600">Email</p><a href={`mailto:${selectedLocation.email}`} className="font-semibold text-blue-600 text-sm break-all">{selectedLocation.email}</a></div></div>
-                    {selectedLocation.website && <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">🌐</span><div><p className="text-sm text-gray-600">Website</p><p className="font-semibold text-blue-600">{selectedLocation.website}</p></div></div>}
-                    <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">Coordinates</p><p className="font-semibold text-gray-800 font-mono text-sm">{selectedLocation.coordinates}</p></div></div>
+                    <div className="flex items-start gap-3"><Users className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">{t('wsm.contactPerson')}</p><p className="font-semibold text-gray-800">{selectedLocation.contact}</p></div></div>
+                    <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">📱</span><div><p className="text-sm text-gray-600">{t('wsm.phone')}</p><a href={`tel:${selectedLocation.phone}`} className="font-semibold text-blue-600">{selectedLocation.phone}</a></div></div>
+                    <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">✉️</span><div><p className="text-sm text-gray-600">{t('wsm.email')}</p><a href={`mailto:${selectedLocation.email}`} className="font-semibold text-blue-600 text-sm break-all">{selectedLocation.email}</a></div></div>
+                    {selectedLocation.website && <div className="flex items-start gap-3"><span className="w-5 h-5 text-gray-400 mt-1 text-center">🌐</span><div><p className="text-sm text-gray-600">{t('wsm.website')}</p><p className="font-semibold text-blue-600">{selectedLocation.website}</p></div></div>}
+                    <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 mt-1" /><div><p className="text-sm text-gray-600">{t('wsm.coordinates')}</p><p className="font-semibold text-gray-800 font-mono text-sm">{selectedLocation.coordinates}</p></div></div>
                   </div>
                 </div>
                 {/* ── LOCATION MAP ── */}
@@ -2454,7 +2474,7 @@ const FuelIntegrityApp = () => {
                   const [lat, lng] = selectedLocation.coordinates.split(',').map((c: string) => c.trim());
                   return (
                     <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3"><MapPin className="w-5 h-5 text-green-600" />Location Map</h3>
+                      <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3"><MapPin className="w-5 h-5 text-green-600" />{t('wsm.locationMap')}</h3>
                       <div className="rounded-lg overflow-hidden border border-gray-200" style={{ height: 300 }}>
                         <iframe
                           title={`Map of ${selectedLocation.name}`}
@@ -2471,7 +2491,7 @@ const FuelIntegrityApp = () => {
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:underline mt-1 inline-block"
                       >
-                        View larger map
+                        {t('wsm.viewLargerMap')}
                       </a>
                     </div>
                   );
@@ -2481,10 +2501,10 @@ const FuelIntegrityApp = () => {
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-800">{currentView === 'wsm' ? 'Wet Stock Management' : 'Location Directory'}</h2>
+            <h2 className="text-2xl font-bold text-gray-800">{currentView === 'wsm' ? t('wsm.title') : t('dir.title')}</h2>
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setViewType('depots')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'depots' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Depots ({depots.length})</button>
-              <button onClick={() => setViewType('stations')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'stations' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>Stations ({gasStations.length})</button>
+              <button onClick={() => setViewType('depots')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'depots' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{`${t('wsm.depots')} (${depots.length})`}</button>
+              <button onClick={() => setViewType('stations')} className={`flex-1 py-2 rounded-md font-semibold transition ${viewType === 'stations' ? 'bg-white text-green-600 shadow' : 'text-gray-600'}`}>{`${t('wsm.stations')} (${gasStations.length})`}</button>
             </div>
             <div className="space-y-3">
               {viewType === 'depots' ? depots.map(d => (
@@ -2499,8 +2519,8 @@ const FuelIntegrityApp = () => {
                       <p className="text-sm text-gray-600 mb-2">{d.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{d.location}</span></div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><span className="text-gray-600">Stock: </span><span className="font-semibold">{d.current.toLocaleString()} L</span></div>
-                        <div><span className="text-gray-600">Capacity: </span><span className="font-semibold">{d.capacity.toLocaleString()} L</span></div>
+                        <div><span className="text-gray-600">{t('wsm.stock')} </span><span className="font-semibold">{d.current.toLocaleString()} L</span></div>
+                        <div><span className="text-gray-600">{t('wsm.capacity')}: </span><span className="font-semibold">{d.capacity.toLocaleString()} L</span></div>
                       </div>
                       {(() => { const sd = stockData.find(s => s.location === d.name); return sd ? (
                         <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
@@ -2532,11 +2552,11 @@ const FuelIntegrityApp = () => {
                       <p className="text-sm text-gray-600 mb-2">{s.company}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><MapPin className="w-3 h-3" /><span>{s.location}</span></div>
                       {s.inspection && (
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><FileText className="w-3 h-3" /><span>Last inspection: {s.inspection.lastDate}</span><span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-bold ${s.inspection.result === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.inspection.result}</span></div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3"><FileText className="w-3 h-3" /><span>{t('wsm.lastInsp')} {s.inspection.lastDate}</span><span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-bold ${s.inspection.result === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.inspection.result}</span></div>
                       )}
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><span className="text-gray-600">Stock: </span><span className="font-semibold">{s.current.toLocaleString()} L</span></div>
-                        <div><span className="text-gray-600">Capacity: </span><span className="font-semibold">{s.capacity.toLocaleString()} L</span></div>
+                        <div><span className="text-gray-600">{t('wsm.stock')} </span><span className="font-semibold">{s.current.toLocaleString()} L</span></div>
+                        <div><span className="text-gray-600">{t('wsm.capacity')}: </span><span className="font-semibold">{s.capacity.toLocaleString()} L</span></div>
                       </div>
                       {(() => {
                         const td = stationTanks.find(t => t.stationId === s.id);
@@ -2556,9 +2576,9 @@ const FuelIntegrityApp = () => {
                             </div>
                             <div className="flex items-center gap-1.5 mt-1.5">
                               <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${hasOffline ? 'bg-red-100 text-red-700' : hasWarn ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                                ATG {hasOffline ? '⚠ Offline' : hasWarn ? '⚠ Warning' : '✓ Online'}
+                                {t('wsm.atg')} {hasOffline ? `⚠ ${t('wsm.offline')}` : hasWarn ? `⚠ ${t('wsm.warning')}` : `✓ ${t('wsm.online')}`}
                               </span>
-                              <span className="text-xs text-gray-400">{td.tanks.length} tanks</span>
+                              <span className="text-xs text-gray-400">{td.tanks.length} {t('wsm.tanks')}</span>
                             </div>
                           </div>
                         );
@@ -2714,18 +2734,18 @@ const FuelIntegrityApp = () => {
     // ── Report list ──
     if (!activeReport) return (
       <div className="p-4 space-y-4">
-        <h2 className="text-2xl font-bold text-gray-800">Reports & Analytics</h2>
+        <h2 className="text-2xl font-bold text-gray-800">{t('rep.title')}</h2>
         <div className="grid grid-cols-1 gap-3">
           {[
-            { id: 'current-stock', icon: Fuel, color: 'text-blue-600', title: 'Current Stock Levels', desc: 'Live fuel stock at each monitored location' },
-            { id: 'historical', icon: TrendingUp, color: 'text-green-600', title: 'Historical Stock Levels', desc: 'Stock levels at any given date with trends' },
-            { id: 'custody-flow', icon: Truck, color: 'text-orange-600', title: 'Custody Flow Report', desc: 'Incoming & outgoing fuel flows at each custody change' },
-            { id: 'balance', icon: Activity, color: 'text-purple-600', title: 'Stock Balance Calculator', desc: 'Automated balance calculation across the supply chain' },
-            { id: 'volume', icon: BarChart3, color: 'text-red-600', title: 'Volume Levels Report', desc: 'Fuel volumes by location and time period' },
-            { id: 'discrepancy', icon: AlertTriangle, color: 'text-amber-600', title: 'Discrepancy & Leakage Report', desc: 'Highlighting discrepancies, leakages, or theft' },
-            { id: 'risk-profile', icon: Shield, color: 'text-indigo-600', title: 'Risk Profiling Report', desc: 'Risk profiling for each monitored location' },
-            { id: 'high-risk', icon: Target, color: 'text-rose-600', title: 'High-Risk Zones & Operators', desc: 'Identification of high-risk zones and operators' },
-            { id: 'enforcement', icon: Crosshair, color: 'text-teal-600', title: 'Enforcement Planning', desc: 'Targeted enforcement planning based on risk indicators' },
+            { id: 'current-stock', icon: Fuel, color: 'text-blue-600', title: t('rep.currentStock'), desc: t('rep.currentStockSub') },
+            { id: 'historical', icon: TrendingUp, color: 'text-green-600', title: t('rep.historicalStock'), desc: t('rep.historicalSub') },
+            { id: 'custody-flow', icon: Truck, color: 'text-orange-600', title: t('rep.custodyFlow'), desc: 'Incoming & outgoing fuel flows at each custody change' },
+            { id: 'balance', icon: Activity, color: 'text-purple-600', title: t('rep.stockBalance'), desc: 'Automated balance calculation across the supply chain' },
+            { id: 'volume', icon: BarChart3, color: 'text-red-600', title: t('rep.volumeLevels'), desc: 'Fuel volumes by location and time period' },
+            { id: 'discrepancy', icon: AlertTriangle, color: 'text-amber-600', title: t('rep.discrepancy'), desc: 'Highlighting discrepancies, leakages, or theft' },
+            { id: 'risk-profile', icon: Shield, color: 'text-indigo-600', title: t('rep.riskProfiling'), desc: 'Risk profiling for each monitored location' },
+            { id: 'high-risk', icon: Target, color: 'text-rose-600', title: t('rep.highRiskZones'), desc: 'Identification of high-risk zones and operators' },
+            { id: 'enforcement', icon: Crosshair, color: 'text-teal-600', title: t('rep.enforcement'), desc: 'Targeted enforcement planning based on risk indicators' },
           ].map(report => (
             <button key={report.id} onClick={() => setActiveReport(report.id)} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left">
               <div className="flex items-center gap-3">
@@ -2740,21 +2760,21 @@ const FuelIntegrityApp = () => {
 
     return (
       <div className="p-4 space-y-4">
-        <button onClick={() => setActiveReport(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />Back to Reports</button>
+        <button onClick={() => setActiveReport(null)} className="flex items-center gap-2 text-blue-600 font-semibold"><X className="w-5 h-5" />{t('rep.back')}</button>
 
         {/* ── CURRENT STOCK LEVELS ── */}
         {activeReport === 'current-stock' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Current Stock Levels</h3>
-              <p className="text-sm text-gray-500 mb-4">Live fuel stock at each monitored location</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.currentStock')}</h3>
+              <p className="text-sm text-gray-500 mb-4">{t('rep.currentStockSub')}</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Current Stock</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.current, 0).toLocaleString()} L</p></div>
-                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Capacity</p><p className="text-lg font-bold text-green-600">{stockData.reduce((a, b) => a + b.capacity, 0).toLocaleString()} L</p></div>
-                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Avg Utilization</p><p className="text-lg font-bold text-yellow-600">{(stockData.reduce((a, b) => a + (b.current / b.capacity), 0) / stockData.length * 100).toFixed(1)}%</p></div>
-                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Locations Monitored</p><p className="text-lg font-bold text-red-600">{stockData.length}</p></div>
+                <div className="bg-blue-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.totalStock')}</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.current, 0).toLocaleString()} L</p></div>
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.totalCapacity')}</p><p className="text-lg font-bold text-green-600">{stockData.reduce((a, b) => a + b.capacity, 0).toLocaleString()} L</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.avgUtil')}</p><p className="text-lg font-bold text-yellow-600">{(stockData.reduce((a, b) => a + (b.current / b.capacity), 0) / stockData.length * 100).toFixed(1)}%</p></div>
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.locationsMonitored')}</p><p className="text-lg font-bold text-red-600">{stockData.length}</p></div>
               </div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Stock vs Capacity</h4>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('rep.stockVsCapacity')}</h4>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={volumeChartData} margin={{ top: 5, right: 5, left: -20, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -2794,11 +2814,11 @@ const FuelIntegrityApp = () => {
         {activeReport === 'historical' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Historical Stock Levels</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.historicalStock')}</h3>
               <p className="text-sm text-gray-500 mb-4">View stock levels at any given date</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Select Date</label>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{t('rep.selectDate')}</label>
                   <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} min="2026-02-04" max="2026-02-10" className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
@@ -2847,7 +2867,7 @@ const FuelIntegrityApp = () => {
         {activeReport === 'custody-flow' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Custody Flow Report</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.custodyFlow')}</h3>
               <p className="text-sm text-gray-500 mb-4">Incoming and outgoing fuel flows at each custody change</p>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Total Dispatched</p><p className="text-lg font-bold text-green-600">{custodyFlows.reduce((a, b) => a + b.outgoing, 0).toLocaleString()} L</p></div>
@@ -3093,12 +3113,12 @@ const FuelIntegrityApp = () => {
         {activeReport === 'risk-profile' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Risk Profiling Report</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.riskProfiling')}</h3>
               <p className="text-sm text-gray-500 mb-4">Composite risk assessment for each monitored location</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Critical Risk</p><p className="text-lg font-bold text-red-600">{riskProfiles.filter(r => r.riskLevel === 'Critical').length} locations</p></div>
-                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">High Risk</p><p className="text-lg font-bold text-orange-600">{riskProfiles.filter(r => r.riskLevel === 'High').length} locations</p></div>
-                <div className="bg-indigo-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Avg Risk Score</p><p className="text-lg font-bold text-indigo-600">{Math.round(riskProfiles.reduce((a, b) => a + b.riskScore, 0) / riskProfiles.length)}/100</p></div>
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.criticalRisk')}</p><p className="text-lg font-bold text-red-600">{riskProfiles.filter(r => r.riskLevel === 'Critical').length} {t('rep.locations')}</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.highRisk')}</p><p className="text-lg font-bold text-orange-600">{riskProfiles.filter(r => r.riskLevel === 'High').length} {t('rep.locations')}</p></div>
+                <div className="bg-indigo-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.avgRisk')}</p><p className="text-lg font-bold text-indigo-600">{Math.round(riskProfiles.reduce((a, b) => a + b.riskScore, 0) / riskProfiles.length)}/100</p></div>
                 <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Open Incidents</p><p className="text-lg font-bold text-yellow-600">{incidents.filter(inc => inc.status !== 'resolved').length}</p></div>
               </div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Risk Scores by Location</h4>
@@ -3144,7 +3164,7 @@ const FuelIntegrityApp = () => {
         {activeReport === 'high-risk' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">High-Risk Zones & Operators</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.highRiskZones')}</h3>
               <p className="text-sm text-gray-500 mb-4">Identification of high-risk geographic zones and fuel operators</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Highest Risk Zone</p><p className="text-lg font-bold text-red-600">{zoneRisks[0]?.zone || 'N/A'}</p></div>
@@ -3224,16 +3244,16 @@ const FuelIntegrityApp = () => {
         {activeReport === 'enforcement' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-xl font-bold text-gray-800 mb-1">Enforcement Planning</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{t('rep.enforcement')}</h3>
               <p className="text-sm text-gray-500 mb-4">Targeted enforcement actions based on risk indicators</p>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Critical Priority</p><p className="text-lg font-bold text-red-600">{enforcementPlan.filter(e => e.priority === 1).length} locations</p></div>
-                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">High Priority</p><p className="text-lg font-bold text-orange-600">{enforcementPlan.filter(e => e.priority === 2).length} locations</p></div>
-                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Medium Priority</p><p className="text-lg font-bold text-yellow-600">{enforcementPlan.filter(e => e.priority === 3).length} locations</p></div>
-                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">Routine</p><p className="text-lg font-bold text-green-600">{enforcementPlan.filter(e => e.priority === 4).length} locations</p></div>
+                <div className="bg-red-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.critPriority')}</p><p className="text-lg font-bold text-red-600">{enforcementPlan.filter(e => e.priority === 1).length} {t('rep.locations')}</p></div>
+                <div className="bg-orange-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.highPriority')}</p><p className="text-lg font-bold text-orange-600">{enforcementPlan.filter(e => e.priority === 2).length} {t('rep.locations')}</p></div>
+                <div className="bg-yellow-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.medPriority')}</p><p className="text-lg font-bold text-yellow-600">{enforcementPlan.filter(e => e.priority === 3).length} {t('rep.locations')}</p></div>
+                <div className="bg-green-50 p-3 rounded-lg"><p className="text-xs text-gray-600">{t('rep.routine')}</p><p className="text-lg font-bold text-green-600">{enforcementPlan.filter(e => e.priority === 4).length} {t('rep.locations')}</p></div>
               </div>
               <div className="bg-gray-50 p-3 rounded-lg text-center">
-                <p className="text-xs text-gray-500 mb-1">Enforcement Strategy</p>
+                <p className="text-xs text-gray-500 mb-1">{t('rep.enforcementStrategy')}</p>
                 <p className="font-mono text-sm font-semibold text-gray-700">Risk Score → Priority Level → Targeted Actions</p>
               </div>
             </div>
@@ -3277,10 +3297,10 @@ const FuelIntegrityApp = () => {
   // ── PROFILES VIEW ──
   const ProfilesView = () => {
     const profiles = [
-      { key: 'admin', label: 'Administrator' },
-      { key: 'operator', label: 'Depto Operator' },
-      { key: 'station_operator', label: 'Station Operator' },
-      { key: 'inspector', label: 'Field Inspector' },
+      { key: 'admin', label: t('pro.admin') },
+      { key: 'operator', label: t('pro.depot') },
+      { key: 'station_operator', label: t('pro.station') },
+      { key: 'inspector', label: t('pro.inspector') },
     ];
     const pages = [
       { key: 'dashboard', label: 'Dashboard' },
@@ -3306,7 +3326,7 @@ const FuelIntegrityApp = () => {
           <button onClick={() => setCurrentView('dashboard')} className="text-green-700">
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-lg font-bold text-gray-800">Profile Access Management</h2>
+          <h2 className="text-lg font-bold text-gray-800">{t('pro.title')}</h2>
         </div>
         {profiles.map(profile => (
           <div key={profile.key} className="bg-white rounded-lg shadow p-4">
@@ -3348,11 +3368,11 @@ const FuelIntegrityApp = () => {
           <button onClick={() => setCurrentView('dashboard')} className="text-green-700">
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-lg font-bold text-gray-800">App Settings</h2>
+          <h2 className="text-lg font-bold text-gray-800">{t('set.title')}</h2>
         </div>
         <div className="bg-white rounded-lg shadow p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">App Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('set.appTitle')}</label>
             <input
               type="text"
               value={localSettings.appTitle}
@@ -3361,7 +3381,7 @@ const FuelIntegrityApp = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">App Subtitle</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('set.appSubtitle')}</label>
             <input
               type="text"
               value={localSettings.appSubtitle}
@@ -3370,7 +3390,7 @@ const FuelIntegrityApp = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Footer Text</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('set.footerText')}</label>
             <input
               type="text"
               value={localSettings.footerText}
@@ -3379,7 +3399,7 @@ const FuelIntegrityApp = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sub-footer Text</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('set.subFooter')}</label>
             <input
               type="text"
               value={localSettings.subFooterText}
@@ -3391,7 +3411,7 @@ const FuelIntegrityApp = () => {
             onClick={handleSave}
             className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition"
           >
-            Save Settings
+            {t('set.save')}
           </button>
         </div>
       </div>
@@ -3415,12 +3435,12 @@ const FuelIntegrityApp = () => {
     const userRole = currentUser?.role || '';
     const rolePerms = profilePermissions[userRole] || {};
     const allNavItems = [
-      { view: 'dashboard', icon: Home, label: 'Home' },
-      { view: 'sct', icon: Truck, label: 'SCT' },
-      { view: 'tracking', icon: Navigation, label: 'Tracking' },
-      { view: 'wsm', icon: Package, label: 'WSM' },
-      { view: 'incidents', icon: AlertCircle, label: 'Alerts' },
-      { view: 'reports', icon: BarChart3, label: 'Reports' },
+      { view: 'dashboard', icon: Home,        label: t('nav.home')     },
+      { view: 'sct',       icon: Truck,       label: t('nav.sct')      },
+      { view: 'tracking',  icon: Navigation,  label: t('nav.tracking') },
+      { view: 'wsm',       icon: Package,     label: t('nav.wsm')      },
+      { view: 'incidents', icon: AlertCircle, label: t('nav.alerts')   },
+      { view: 'reports',   icon: BarChart3,   label: t('nav.reports')  },
     ];
     const visibleItems = allNavItems.filter(item => rolePerms[item.view] !== false);
     return (
@@ -3440,13 +3460,26 @@ const FuelIntegrityApp = () => {
     <div className={`fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuOpen(false)}>
       <div className={`fixed right-0 top-0 bottom-0 w-64 bg-white shadow-xl transform transition-transform ${menuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={e => e.stopPropagation()}>
         <div className="p-4 bg-gradient-to-r from-green-700 to-green-600 text-white">
-          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">Options</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
+          <div className="flex items-center justify-between"><div><h2 className="font-bold text-lg">{t('nav.options')}</h2><p className="text-xs text-green-100">{currentUser?.name}</p></div><button onClick={() => setMenuOpen(false)}><X className="w-6 h-6" /></button></div>
         </div>
         <div className="p-4 space-y-2">
-          <button onClick={() => { setCurrentView('tracking'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Navigation className="w-5 h-5 text-green-600" /><span>Cargo Tracking</span></button>
-          <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>Profile</span></button>
-          <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>Settings</span></button>
-          <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>Logout</span></button>
+          <button onClick={() => { setCurrentView('tracking'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Navigation className="w-5 h-5 text-green-600" /><span>{t('nav.cargoTracking')}</span></button>
+          <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>{t('nav.profile')}</span></button>
+          <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>{t('nav.settings')}</span></button>
+          <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>{t('nav.logout')}</span></button>
+        </div>
+        {/* Language switcher */}
+        <div className="px-4 pb-4">
+          <p className="text-xs text-gray-500 font-semibold mb-2 uppercase tracking-wide">{t('nav.language')}</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {(Object.keys(langLabels) as Lang[]).map(l => (
+              <button key={l} onClick={() => setLang(l)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border transition ${lang === l ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'}`}>
+                <span>{langLabels[l].flag}</span>
+                <span>{langLabels[l].label}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50">
           <p className="text-xs text-gray-600 text-center">{appSettings.footerText}</p>
@@ -3474,8 +3507,8 @@ const FuelIntegrityApp = () => {
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
           <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Scan {scanType === 'consignment' ? 'Consignment' : scanType === 'delivery' ? 'Delivery' : 'Loading'} QR Code</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Point camera at the consignment QR code</p>
+              <h3 className="font-semibold">{scanType === 'consignment' ? t('common.scanConsignment') : scanType === 'delivery' ? t('common.scanDelivery') : t('common.scanLoading')}</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{t('common.cameraDesc')}</p>
             </div>
             <button onClick={stopCamera} className="text-white bg-gray-700 rounded-full p-2 hover:bg-gray-600"><X className="w-5 h-5" /></button>
           </div>
@@ -3485,15 +3518,15 @@ const FuelIntegrityApp = () => {
               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 p-6">
                 <div className="bg-white rounded-lg p-6 text-center max-w-sm">
                   <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
-                  <p className="text-gray-800 font-semibold mb-2">Camera Access Required</p>
+                  <p className="text-gray-800 font-semibold mb-2">{t('common.camera')}</p>
                   <p className="text-sm text-gray-600 mb-4">{scannerError}</p>
-                  <button onClick={stopCamera} className="bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-700">Close</button>
+                  <button onClick={stopCamera} className="bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-700">{t('common.close')}</button>
                 </div>
               </div>
             )}
           </div>
           <div className="p-4 bg-gray-900 text-center">
-            <p className="text-sm text-gray-400">{scanType === 'consignment' ? 'Scan the QR code to load consignment' : scanType === 'delivery' ? 'Scan the loading transaction QR to register delivery' : 'Scan the QR code on the loading ticket'}</p>
+            <p className="text-sm text-gray-400">{scanType === 'consignment' ? t('common.scanConsignment') : scanType === 'delivery' ? t('common.scanDelivery') : t('common.scanLoading')}</p>
           </div>
         </div>
       )}
