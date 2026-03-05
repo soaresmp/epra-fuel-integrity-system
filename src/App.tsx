@@ -794,59 +794,46 @@ const FuelIntegrityApp = () => {
           <p className="text-sm font-semibold text-green-700">{currentUser?.name}</p>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3">{t('dash.nationalStock')}</h3>
+
+      {/* National Stock */}
+      <div className="bg-white rounded-lg shadow p-5">
+        <h3 className="text-base font-bold text-gray-700 mb-4">{t('dash.nationalStock')}</h3>
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-600">
-            <p className="text-xs text-gray-600">{t('dash.diesel')}</p><p className="text-lg font-bold text-blue-600">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p>
+          <div className="bg-blue-50 p-4 rounded-xl border-l-4 border-blue-600">
+            <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">{t('dash.diesel')}</p>
+            <p className="text-2xl font-black text-blue-700">{stockData.reduce((a, b) => a + b.diesel, 0).toLocaleString()}</p>
+            <p className="text-xs text-blue-400 mt-0.5">L</p>
           </div>
-          <div className="bg-amber-50 p-3 rounded-lg border-l-4 border-amber-600">
-            <p className="text-xs text-gray-600">{t('dash.gasoline')}</p><p className="text-lg font-bold text-amber-600">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p>
+          <div className="bg-amber-50 p-4 rounded-xl border-l-4 border-amber-600">
+            <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide mb-1">{t('dash.gasoline')}</p>
+            <p className="text-2xl font-black text-amber-700">{stockData.reduce((a, b) => a + b.gasoline, 0).toLocaleString()}</p>
+            <p className="text-xs text-amber-400 mt-0.5">L</p>
           </div>
-          <div className="bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-600">
-            <p className="text-xs text-gray-600">{t('dash.kerosene')}</p><p className="text-lg font-bold text-cyan-600">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
+          <div className="bg-cyan-50 p-4 rounded-xl border-l-4 border-cyan-600">
+            <p className="text-xs font-semibold text-cyan-500 uppercase tracking-wide mb-1">{t('dash.kerosene')}</p>
+            <p className="text-2xl font-black text-cyan-700">{stockData.reduce((a, b) => a + b.kerosene, 0).toLocaleString()}</p>
+            <p className="text-xs text-cyan-400 mt-0.5">L</p>
           </div>
         </div>
       </div>
+
+      {/* Metric Cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.activeTx')}</p><p className="text-2xl font-bold text-green-600">{transactions.filter(tx => tx.status === 'in-transit').length}</p></div><Truck className="w-8 h-8 text-green-600" /></div>
-        </div>
-        <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.completedToday')}</p><p className="text-2xl font-bold text-yellow-600">{transactions.filter(tx => tx.status === 'completed').length}</p></div><CheckCircle className="w-8 h-8 text-yellow-600" /></div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.activeIncidents')}</p><p className="text-2xl font-bold text-red-600">{incidents.filter(i => i.status === 'open').length}</p></div><AlertCircle className="w-8 h-8 text-red-600" /></div>
-        </div>
-        <div className="bg-indigo-50 p-4 rounded-lg border-l-4 border-indigo-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.fuelDepots')}</p><p className="text-2xl font-bold text-indigo-600">{depots.length}</p></div><Building2 className="w-8 h-8 text-indigo-600" /></div>
-        </div>
-        <div className="bg-teal-50 p-4 rounded-lg border-l-4 border-teal-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.fuelStations')}</p><p className="text-2xl font-bold text-teal-600">{gasStations.length}</p></div><Store className="w-8 h-8 text-teal-600" /></div>
-        </div>
-        <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.monthlyInsp')}</p><p className="text-2xl font-bold text-orange-600">{gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length}</p></div><Crosshair className="w-8 h-8 text-orange-600" /></div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-600">
-          <div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">{t('dash.compliance')}</p><p className="text-2xl font-bold text-purple-600">{(() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0; })()}%</p></div><Shield className="w-8 h-8 text-purple-600" /></div>
-        </div>
-      </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-800">{t('dash.recentTx')}</h3>
-          <button
-            onClick={() => setCurrentView('sct')}
-            className="text-xs text-green-600 hover:text-green-800 font-semibold flex items-center gap-1"
-          >
-            {t('dash.viewAll')} {transactions.length} →
-          </button>
-        </div>
-        {transactions.slice(0, 3).map(txn => (
-          <div key={txn.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
-            <div><p className="font-medium text-gray-800">{txn.id}</p><p className="text-sm text-gray-600">{txn.from} → {txn.to}</p></div>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${txn.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{txn.status}</span>
+        {[
+          { label: t('dash.activeTx'),        value: transactions.filter(tx => tx.status === 'in-transit').length, Icon: Truck,        bg: 'bg-green-50',   border: 'border-green-500',   text: 'text-green-600',   iconBg: 'bg-green-100'  },
+          { label: t('dash.completedToday'),  value: transactions.filter(tx => tx.status === 'completed').length,  Icon: CheckCircle,  bg: 'bg-yellow-50',  border: 'border-yellow-500',  text: 'text-yellow-600',  iconBg: 'bg-yellow-100' },
+          { label: t('dash.activeIncidents'), value: incidents.filter(i => i.status === 'open').length,             Icon: AlertCircle,  bg: 'bg-red-50',     border: 'border-red-500',     text: 'text-red-600',     iconBg: 'bg-red-100'    },
+          { label: t('dash.fuelDepots'),      value: depots.length,                                                 Icon: Building2,    bg: 'bg-indigo-50',  border: 'border-indigo-500',  text: 'text-indigo-600',  iconBg: 'bg-indigo-100' },
+          { label: t('dash.fuelStations'),    value: gasStations.length,                                            Icon: Store,        bg: 'bg-teal-50',    border: 'border-teal-500',    text: 'text-teal-600',    iconBg: 'bg-teal-100'   },
+          { label: t('dash.monthlyInsp'),     value: gasStations.filter(s => { if (!s.inspection) return false; const parts = s.inspection.lastDate.split('/'); const now = new Date(); return parseInt(parts[1]) === now.getMonth() + 1 && parseInt(parts[2]) === now.getFullYear(); }).length, Icon: Crosshair, bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-600', iconBg: 'bg-orange-100' },
+          { label: t('dash.compliance'),      value: (() => { const inspected = gasStations.filter(s => s.inspection); const passed = inspected.filter(s => s.inspection?.result === 'PASS'); return (inspected.length > 0 ? Math.round((passed.length / inspected.length) * 100) : 0) + '%'; })(), Icon: Shield, bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-600', iconBg: 'bg-purple-100' },
+        ].map(({ label, value, Icon, bg, border, text, iconBg }) => (
+          <div key={label} className={`${bg} p-5 rounded-xl border-l-4 ${border} shadow-sm`}>
+            <div className={`w-12 h-12 ${iconBg} rounded-full flex items-center justify-center mb-3`}>
+              <Icon className={`w-7 h-7 ${text}`} />
+            </div>
+            <p className={`text-4xl font-black ${text} leading-none mb-2`}>{value}</p>
+            <p className="text-sm font-semibold text-gray-600 leading-tight">{label}</p>
           </div>
         ))}
       </div>
