@@ -1,11 +1,74 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download, Navigation, Flame, Tag } from 'lucide-react';
+import { Menu, X, Home, Package, Truck, AlertCircle, BarChart3, Settings, Scan, CheckCircle, MapPin, Clock, Fuel, Building2, Store, Users, FileText, Eye, TrendingUp, ArrowDownCircle, ArrowUpCircle, Activity, Shield, Target, AlertTriangle, Crosshair, Camera, ClipboardCheck, Printer, Download, Navigation, Flame, Tag, Ship, Anchor, FlaskConical, Award, Calendar, Warehouse, Globe2, ChevronRight, BadgeCheck, Scale, Layers, Container, ChevronDown } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
 import CargoTrackingView from './CargoTracking';
 import { translations, langLabels, Lang } from './i18n';
+
+// ─── FUEL TRADING & LOGISTICS PLATFORM DATA ───────────────────────────────────
+
+const FTL_PARTICIPANTS = [
+  { id: 'IMP-001', name: 'TotalEnergies Kenya Ltd',           type: 'importer',   epraLic: 'EPRA/IMP/2024/001', kebsLic: 'KEBS/IMP/2024/001', status: 'active',    expires: '31/12/2025', country: 'France' },
+  { id: 'IMP-002', name: 'Vitol Energy Kenya Ltd',            type: 'importer',   epraLic: 'EPRA/IMP/2024/002', kebsLic: '',                   status: 'active',    expires: '28/02/2026', country: 'Switzerland' },
+  { id: 'IMP-003', name: 'Galana Oil Kenya Ltd',              type: 'importer',   epraLic: 'EPRA/IMP/2024/003', kebsLic: '',                   status: 'active',    expires: '31/08/2025', country: 'Kenya' },
+  { id: 'OMC-001', name: 'Vivo Energy Kenya (Shell)',         type: 'omc',        epraLic: 'EPRA/OMC/2024/001', kebsLic: 'KEBS/OMC/2024/001', status: 'active',    expires: '30/06/2025', country: 'Kenya' },
+  { id: 'OMC-002', name: 'Rubis Energy Kenya Ltd',            type: 'omc',        epraLic: 'EPRA/OMC/2024/002', kebsLic: 'KEBS/OMC/2024/002', status: 'active',    expires: '31/03/2026', country: 'France' },
+  { id: 'OMC-003', name: 'Hass Petroleum Ltd',                type: 'omc',        epraLic: 'EPRA/OMC/2024/003', kebsLic: '',                   status: 'active',    expires: '31/12/2025', country: 'Kenya' },
+  { id: 'MARK-001', name: 'Authentix International',          type: 'marking',    epraLic: 'EPRA/MARK/2024/001', kebsLic: 'KEBS/MARK/2024/001', status: 'active',  expires: '31/12/2026', country: 'USA' },
+  { id: 'MARK-002', name: 'Tracerco Kenya Ltd',               type: 'marking',    epraLic: 'EPRA/MARK/2024/002', kebsLic: 'KEBS/MARK/2024/002', status: 'active',  expires: '30/09/2025', country: 'UK' },
+  { id: 'DEP-001', name: 'KPC Kipevu Oil Storage Facility',   type: 'depot',      epraLic: 'EPRA/DEP/2024/001', kebsLic: 'KEBS/DEP/2024/001', status: 'active',    expires: '31/12/2025', country: 'Kenya' },
+  { id: 'DEP-002', name: 'Essar Oil Kenya (Kipevu)',          type: 'depot',      epraLic: 'EPRA/DEP/2024/002', kebsLic: 'KEBS/DEP/2024/002', status: 'active',    expires: '31/08/2025', country: 'India' },
+  { id: 'DEP-003', name: 'Bakri Cemenco (Mombasa)',           type: 'depot',      epraLic: 'EPRA/DEP/2024/003', kebsLic: '',                   status: 'suspended', expires: '28/02/2025', country: 'Switzerland' },
+  { id: 'TRN-001', name: 'Gulf Energy Limited',               type: 'transporter', epraLic: 'EPRA/TRN/2024/001', kebsLic: '',                  status: 'active',    expires: '31/12/2025', country: 'Kenya' },
+  { id: 'TRN-002', name: 'Petrovida Kenya Ltd',               type: 'transporter', epraLic: 'EPRA/TRN/2024/002', kebsLic: '',                  status: 'active',    expires: '30/09/2025', country: 'Kenya' },
+  { id: 'TRN-003', name: 'Kenya Oil Transporters Co.',        type: 'transporter', epraLic: 'EPRA/TRN/2024/003', kebsLic: '',                  status: 'suspended', expires: '30/06/2025', country: 'Kenya' },
+  { id: 'LAB-001', name: 'KEBS Regional Lab – Mombasa',       type: 'laboratory', epraLic: 'EPRA/LAB/2024/001', kebsLic: 'KEBS/LAB/2024/001', status: 'active',    expires: '31/12/2026', country: 'Kenya' },
+  { id: 'LAB-002', name: 'Intertek Testing Services Kenya',   type: 'laboratory', epraLic: '',                   kebsLic: 'KEBS/LAB/2024/002', status: 'active',    expires: '30/09/2025', country: 'UK' },
+  { id: 'SHIP-001', name: 'Inchcape Shipping Services Kenya', type: 'shipping',   epraLic: '',                   kebsLic: '',                   status: 'active',    expires: '31/12/2025', country: 'UK' },
+  { id: 'SHIP-002', name: 'Maersk Kenya Ltd',                 type: 'shipping',   epraLic: '',                   kebsLic: '',                   status: 'active',    expires: '31/12/2025', country: 'Denmark' },
+];
+
+const FTL_CARGO = [
+  { id: 'CARGO-001', vessel: 'MT Malaika',      imo: '9445678', flag: '🇲🇭 Marshall Is.', product: 'Diesel',       volume: 45000, origin: 'Jubail, Saudi Arabia',    refinery: 'Saudi Aramco Jubail', eta: '14/03/2026', bill: 'BL-2026-MA-001', importer: 'TotalEnergies Kenya Ltd',  status: 'in-transit',  riskScore: 12, riskLevel: 'Low'      },
+  { id: 'CARGO-002', vessel: 'MT Pwani Star',   imo: '9334567', flag: '🇧🇸 Bahamas',      product: 'Petrol',       volume: 32000, origin: 'Fujairah, UAE',             refinery: 'ENOC Fujairah',       eta: '16/03/2026', bill: 'BL-2026-PS-002', importer: 'Vitol Energy Kenya Ltd',   status: 'declared',    riskScore: 8,  riskLevel: 'Low'      },
+  { id: 'CARGO-003', vessel: 'MT Indian Ocean', imo: '9223456', flag: '🇵🇦 Panama',       product: 'Kerosene (IK)',volume: 28000, origin: 'Ras Tanura, Saudi Arabia', refinery: 'Saudi Aramco',        eta: '12/03/2026', bill: 'BL-2026-IO-003', importer: 'TotalEnergies Kenya Ltd',  status: 'discharged',  riskScore: 5,  riskLevel: 'Low'      },
+  { id: 'CARGO-004', vessel: 'MT Bahari',       imo: '9112345', flag: '🇸🇬 Singapore',    product: 'Jet A-1',      volume: 18000, origin: 'Sikka, India',              refinery: 'Reliance Industries', eta: '20/03/2026', bill: 'BL-2026-BA-004', importer: 'Galana Oil Kenya Ltd',     status: 'declared',    riskScore: 22, riskLevel: 'Medium'   },
+  { id: 'CARGO-005', vessel: 'MT Jahazi',       imo: '9001234', flag: '🇱🇷 Liberia',      product: 'Diesel',       volume: 52000, origin: 'Mina Al Ahmadi, Kuwait',   refinery: 'KPC Kuwait',          eta: '22/03/2026', bill: 'BL-2026-JH-005', importer: 'Vivo Energy Kenya (Shell)',status: 'sampling',    riskScore: 15, riskLevel: 'Low'      },
+  { id: 'CARGO-006', vessel: 'MT Utamaduni',    imo: '8990123', flag: '🇵🇦 Panama',       product: 'Fuel Oil',     volume: 20000, origin: 'Rotterdam, Netherlands',    refinery: 'Shell Pernis',        eta: '25/03/2026', bill: 'BL-2026-UT-006', importer: 'Hass Petroleum Ltd',       status: 'declared',    riskScore: 41, riskLevel: 'High'     },
+];
+
+const FTL_LAYCAN = [
+  { id: 'LYC-001', vessel: 'MT Indian Ocean', berth: 'Berth 3 – Essar Jetty', product: 'Kerosene (IK)', volume: 28000, start: '12/03/2026 06:00', end: '13/03/2026 22:00', status: 'completed', agent: 'Inchcape Shipping Services Kenya' },
+  { id: 'LYC-002', vessel: 'MT Malaika',      berth: 'Berth 1 – KPC Kipevu', product: 'Diesel',       volume: 45000, start: '14/03/2026 06:00', end: '15/03/2026 18:00', status: 'active',    agent: 'Inchcape Shipping Services Kenya' },
+  { id: 'LYC-003', vessel: 'MT Pwani Star',   berth: 'Berth 2 – KPC Kipevu', product: 'Petrol',       volume: 32000, start: '16/03/2026 08:00', end: '17/03/2026 14:00', status: 'confirmed', agent: 'Maersk Kenya Ltd' },
+  { id: 'LYC-004', vessel: 'MT Jahazi',       berth: 'Berth 1 – KPC Kipevu', product: 'Diesel',       volume: 52000, start: '22/03/2026 06:00', end: '24/03/2026 06:00', status: 'confirmed', agent: 'Inchcape Shipping Services Kenya' },
+  { id: 'LYC-005', vessel: 'MT Bahari',       berth: 'Berth 4 – KPC Jetty 2', product: 'Jet A-1',    volume: 18000, start: '20/03/2026 10:00', end: '21/03/2026 20:00', status: 'requested', agent: 'Maersk Kenya Ltd' },
+  { id: 'LYC-006', vessel: 'MT Utamaduni',    berth: 'Pending allocation',   product: 'Fuel Oil',     volume: 20000, start: '25/03/2026 08:00', end: '26/03/2026 20:00', status: 'requested', agent: 'Inchcape Shipping Services Kenya' },
+];
+
+const FTL_LAB_TESTS = [
+  { id: 'TEST-001', cargo: 'CARGO-003', vessel: 'MT Indian Ocean', product: 'Kerosene (IK)', lab: 'KEBS Mombasa',           sampledAt: '12/03/2026 08:30', completedAt: '12/03/2026 16:45', result: 'PASS' as const,
+    tests: [{ param: 'Flash Point (°C)', std: '≥ 38', measured: '42.5', pass: true }, { param: 'Density (kg/m³)', std: '780–820', measured: '801.3', pass: true }, { param: 'Sulphur Content (ppm)', std: '< 500', measured: '215', pass: true }, { param: 'Water Content (%)', std: '< 0.05', measured: '0.01', pass: true }, { param: 'Visual Clarity', std: 'Clear', measured: 'Clear', pass: true }] },
+  { id: 'TEST-002', cargo: 'CARGO-005', vessel: 'MT Jahazi',       product: 'Diesel',        lab: 'Intertek Mombasa',        sampledAt: '13/03/2026 09:00', completedAt: '',                result: 'PENDING' as const,
+    tests: [{ param: 'Flash Point (°C)', std: '≥ 52', measured: '—', pass: null }, { param: 'Density (kg/m³)', std: '820–860', measured: '—', pass: null }, { param: 'Sulphur Content (ppm)', std: '< 50', measured: '—', pass: null }, { param: 'Cetane Number', std: '≥ 51', measured: '—', pass: null }, { param: 'Water Content (%)', std: '< 0.05', measured: '—', pass: null }] },
+  { id: 'TEST-003', cargo: 'CARGO-006', vessel: 'MT Utamaduni',    product: 'Fuel Oil',      lab: 'KEBS Mombasa',           sampledAt: '11/03/2026 11:00', completedAt: '11/03/2026 19:30', result: 'FAIL' as const,
+    tests: [{ param: 'Flash Point (°C)', std: '≥ 60', measured: '54.2', pass: false }, { param: 'Sulphur Content (%)', std: '< 0.5', measured: '1.2', pass: false }, { param: 'Density (kg/m³)', std: '900–1010', measured: '952.1', pass: true }, { param: 'Water Content (%)', std: '< 0.5', measured: '0.8', pass: false }, { param: 'Visual Clarity', std: 'Clear', measured: 'Hazy', pass: false }] },
+];
+
+const FTL_CLEARANCES = [
+  { id: 'CLR-001', cargo: 'CARGO-003', vessel: 'MT Indian Ocean', product: 'Kerosene (IK)', volume: 28000, depot: 'Essar Oil Kenya (Kipevu)', kebsAt: '12/03/2026 18:00', epraAt: '12/03/2026 19:30', kraAt: '13/03/2026 08:00', authAt: '13/03/2026 09:00', status: 'authorized' as const },
+  { id: 'CLR-002', cargo: 'CARGO-001', vessel: 'MT Malaika',      product: 'Diesel',        volume: 45000, depot: 'KPC Kipevu Oil Storage',   kebsAt: '',                 epraAt: '',                 kraAt: '',                 authAt: '',                status: 'awaiting-quality' as const },
+  { id: 'CLR-003', cargo: 'CARGO-005', vessel: 'MT Jahazi',       product: 'Diesel',        volume: 52000, depot: 'KPC Kipevu Oil Storage',   kebsAt: '',                 epraAt: '',                 kraAt: '',                 authAt: '',                status: 'awaiting-quality' as const },
+  { id: 'CLR-004', cargo: 'CARGO-006', vessel: 'MT Utamaduni',    product: 'Fuel Oil',      volume: 20000, depot: 'TBD',                      kebsAt: '',                 epraAt: '',                 kraAt: '',                 authAt: '',                status: 'rejected' as const },
+];
+
+const FTL_OFFLOADS = [
+  { id: 'OFFL-001', clearance: 'CLR-001', vessel: 'MT Indian Ocean', product: 'Kerosene (IK)', depot: 'Essar Oil Kenya (Kipevu)', tank: 'Tank K-3',      startedAt: '13/03/2026 10:30', completedAt: '13/03/2026 22:15', volumeLoaded: 28000, volumeReceived: 27840, status: 'completed' as const },
+  { id: 'OFFL-002', clearance: 'CLR-002', vessel: 'MT Malaika',      product: 'Diesel',        depot: 'KPC Kipevu Oil Storage',   tank: 'Tank D-1 / D-2', startedAt: '14/03/2026 12:00', completedAt: '',                volumeLoaded: 45000, volumeReceived: 0,     status: 'in-progress' as const },
+  { id: 'OFFL-003', clearance: 'CLR-003', vessel: 'MT Jahazi',        product: 'Diesel',        depot: 'KPC Kipevu Oil Storage',   tank: 'TBD',            startedAt: '',                 completedAt: '',                volumeLoaded: 52000, volumeReceived: 0,     status: 'pending' as const },
+];
 
 // ─── SCT / CARGO-TRACKING SHARED FLEET DATA ──────────────────────────────────
 // These constants mirror CargoTracking.tsx exactly so every SCT transaction maps
@@ -2592,6 +2655,498 @@ const FuelIntegrityApp = () => {
     );
   };
 
+  // ── FUEL TRADING & LOGISTICS PLATFORM ──
+  const TradingView = () => {
+    const [activeTab, setActiveTab] = useState<'overview'|'participants'|'cargo'|'laycan'|'quality'|'clearance'|'offload'>('overview');
+    const [participantFilter, setParticipantFilter] = useState<string>('all');
+    const [expandedTest, setExpandedTest] = useState<string|null>(null);
+
+    const participantTypes = [
+      { key: 'all', label: 'All' },
+      { key: 'importer', label: 'Importers' },
+      { key: 'omc', label: 'OMCs' },
+      { key: 'marking', label: 'Marking Cos.' },
+      { key: 'depot', label: 'Depots' },
+      { key: 'transporter', label: 'Transporters' },
+      { key: 'laboratory', label: 'Labs' },
+      { key: 'shipping', label: 'Shipping' },
+    ];
+
+    const typeIcon: Record<string,any> = {
+      importer: Ship, omc: Fuel, marking: Shield, depot: Warehouse,
+      transporter: Truck, laboratory: FlaskConical, shipping: Anchor,
+    };
+
+    const typeBadge: Record<string,string> = {
+      importer: 'bg-blue-100 text-blue-800', omc: 'bg-green-100 text-green-800',
+      marking: 'bg-purple-100 text-purple-800', depot: 'bg-orange-100 text-orange-800',
+      transporter: 'bg-yellow-100 text-yellow-800', laboratory: 'bg-teal-100 text-teal-800',
+      shipping: 'bg-indigo-100 text-indigo-800',
+    };
+
+    const cargoStatusBadge: Record<string,string> = {
+      declared: 'bg-blue-100 text-blue-800', 'in-transit': 'bg-yellow-100 text-yellow-800',
+      sampling: 'bg-purple-100 text-purple-800', cleared: 'bg-green-100 text-green-800',
+      discharged: 'bg-gray-100 text-gray-700', rejected: 'bg-red-100 text-red-800',
+    };
+
+    const laycanStatusBadge: Record<string,string> = {
+      completed: 'bg-gray-100 text-gray-700', active: 'bg-green-100 text-green-800',
+      confirmed: 'bg-blue-100 text-blue-800', requested: 'bg-yellow-100 text-yellow-800',
+    };
+
+    const tabs = [
+      { key: 'overview',     label: 'Overview',     Icon: Layers      },
+      { key: 'participants', label: 'Participants',  Icon: Users       },
+      { key: 'cargo',        label: 'Cargo',         Icon: Container   },
+      { key: 'laycan',       label: 'Laycan',        Icon: Calendar    },
+      { key: 'quality',      label: 'Quality',       Icon: FlaskConical},
+      { key: 'clearance',    label: 'Clearance',     Icon: BadgeCheck  },
+      { key: 'offload',      label: 'Offload',       Icon: Warehouse   },
+    ] as const;
+
+    const filteredParticipants = participantFilter === 'all'
+      ? FTL_PARTICIPANTS
+      : FTL_PARTICIPANTS.filter(p => p.type === participantFilter);
+
+    return (
+      <div className="pb-4">
+        {/* Page Header */}
+        <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white px-4 pt-5 pb-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+              <Anchor className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black leading-tight">Fuel Trading & Logistics</h2>
+              <p className="text-blue-200 text-xs">Regulatory Platform — Port of Mombasa Supply Chain</p>
+            </div>
+          </div>
+          {/* Pipeline status pills */}
+          <div className="flex gap-2 flex-wrap mt-3">
+            {[
+              { label: `${FTL_CARGO.filter(c=>c.status==='in-transit').length} In Transit`,   color: 'bg-yellow-400 text-yellow-900' },
+              { label: `${FTL_CARGO.filter(c=>c.status==='sampling').length} Sampling`,        color: 'bg-purple-400 text-purple-900' },
+              { label: `${FTL_CLEARANCES.filter(c=>c.status==='authorized').length} Cleared`,  color: 'bg-green-400 text-green-900' },
+              { label: `${FTL_OFFLOADS.filter(c=>c.status==='in-progress').length} Offloading`,color: 'bg-orange-400 text-orange-900' },
+            ].map(({label,color})=>(
+              <span key={label} className={`${color} text-xs font-bold px-2.5 py-1 rounded-full`}>{label}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Module Tabs (scrollable horizontal) */}
+        <div className="overflow-x-auto bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="flex min-w-max">
+            {tabs.map(({key, label, Icon}) => (
+              <button key={key} onClick={() => setActiveTab(key as any)}
+                className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 whitespace-nowrap transition ${activeTab === key ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                <Icon className="w-3.5 h-3.5" />{label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+
+          {/* ── OVERVIEW ── */}
+          {activeTab === 'overview' && (
+            <div className="space-y-4">
+              {/* Supply Chain Pipeline */}
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Mombasa Port Supply Chain Pipeline</h3>
+                <div className="flex items-center gap-1 overflow-x-auto pb-2">
+                  {[
+                    { label: 'Cargo Declaration', Icon: Container, count: FTL_CARGO.length, color: 'bg-blue-600', sub: 'Vessel + BL' },
+                    { label: 'Laycan / Berthing', Icon: Anchor,    count: FTL_LAYCAN.filter(l=>l.status==='active'||l.status==='confirmed').length, color: 'bg-indigo-600', sub: 'KPA scheduling' },
+                    { label: 'Quality Sampling',  Icon: FlaskConical, count: FTL_LAB_TESTS.length, color: 'bg-purple-600', sub: 'KEBS / Intertek' },
+                    { label: 'Clearance Auth.',   Icon: BadgeCheck, count: FTL_CLEARANCES.filter(c=>c.status==='authorized').length, color: 'bg-green-600', sub: 'KEBS · EPRA · KRA' },
+                    { label: 'Depot Offload',     Icon: Warehouse,  count: FTL_OFFLOADS.length, color: 'bg-orange-600', sub: 'Volume reconciliation' },
+                    { label: 'Distribution',      Icon: Truck,      count: 0, color: 'bg-teal-600', sub: 'OMC → Stations' },
+                  ].map(({label, Icon, count, color, sub}, i, arr) => (
+                    <div key={label} className="flex items-center gap-1 flex-shrink-0">
+                      <div className={`${color} text-white rounded-xl px-3 py-3 text-center min-w-[90px]`}>
+                        <Icon className="w-5 h-5 mx-auto mb-1 opacity-90" />
+                        <p className="text-lg font-black leading-none">{count || '–'}</p>
+                        <p className="text-[10px] font-bold leading-tight mt-0.5 opacity-90">{label}</p>
+                        <p className="text-[9px] opacity-70 mt-0.5">{sub}</p>
+                      </div>
+                      {i < arr.length - 1 && <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Licensed Entities', value: FTL_PARTICIPANTS.filter(p=>p.status==='active').length, Icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { label: 'Active Vessels',     value: FTL_CARGO.filter(c=>c.status!=='discharged').length, Icon: Ship, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  { label: 'High-Risk Cargo',    value: FTL_CARGO.filter(c=>c.riskLevel==='High').length, Icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+                  { label: 'Pending Clearance',  value: FTL_CLEARANCES.filter(c=>c.status==='awaiting-quality').length, Icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+                ].map(({label,value,Icon,color,bg})=>(
+                  <div key={label} className={`${bg} p-4 rounded-xl border-l-4 border-opacity-50 shadow-sm`}>
+                    <Icon className={`w-6 h-6 ${color} mb-2`} />
+                    <p className={`text-3xl font-black ${color}`}>{value}</p>
+                    <p className="text-xs font-semibold text-gray-600 mt-1">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent Cargo Activity */}
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Recent Cargo Activity</h3>
+                <div className="space-y-2">
+                  {FTL_CARGO.map(c => (
+                    <div key={c.id} className="flex items-center gap-3 py-2 border-b last:border-b-0">
+                      <Ship className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{c.vessel}</p>
+                        <p className="text-xs text-gray-500">{c.product} · {c.volume.toLocaleString()} L · ETA {c.eta}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${cargoStatusBadge[c.status] || 'bg-gray-100 text-gray-600'}`}>{c.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PARTICIPANTS ── */}
+          {activeTab === 'participants' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-700">Licensed Market Participants</h3>
+                <span className="text-xs text-gray-500">{filteredParticipants.length} of {FTL_PARTICIPANTS.length}</span>
+              </div>
+              {/* Type filter */}
+              <div className="overflow-x-auto pb-1">
+                <div className="flex gap-1.5 min-w-max">
+                  {participantTypes.map(({key, label}) => (
+                    <button key={key} onClick={() => setParticipantFilter(key)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition flex-shrink-0 ${participantFilter === key ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Participant list */}
+              {filteredParticipants.map(p => {
+                const Icon = typeIcon[p.type] || Users;
+                return (
+                  <div key={p.id} className="bg-white rounded-xl shadow-sm p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-bold text-sm text-gray-800">{p.name}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${typeBadge[p.type] || 'bg-gray-100 text-gray-600'}`}>{p.type}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{p.status.toUpperCase()}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2"><Globe2 className="w-3 h-3 inline mr-1" />{p.country}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {p.epraLic && <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded font-mono">EPRA: {p.epraLic}</span>}
+                          {p.kebsLic && <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-mono">KEBS: {p.kebsLic}</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1.5">Licence expires: {p.expires}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── CARGO DECLARATIONS ── */}
+          {activeTab === 'cargo' && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-gray-700">Cargo Declarations</h3>
+              {FTL_CARGO.map(c => (
+                <div key={c.id} className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Ship className="w-5 h-5 text-blue-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <p className="font-bold text-sm text-gray-800">{c.vessel}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cargoStatusBadge[c.status] || 'bg-gray-100 text-gray-600'}`}>{c.status}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">IMO {c.imo} · {c.flag}</p>
+                    </div>
+                    <div className={`px-2 py-1 rounded-lg text-xs font-bold ${c.riskLevel === 'High' ? 'bg-red-100 text-red-700' : c.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'} flex-shrink-0`}>
+                      Risk: {c.riskScore}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    {([
+                      ['Product',    c.product],
+                      ['Volume',     `${c.volume.toLocaleString()} L`],
+                      ['Origin',     c.origin],
+                      ['Refinery',   c.refinery],
+                      ['ETA Mombasa', c.eta],
+                      ['Bill of Lading', c.bill],
+                      ['Importer',   c.importer],
+                    ] as [string, string][]).map(([lbl, val]) => (
+                      <div key={lbl} className="flex gap-1">
+                        <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
+                        <span className="font-semibold text-gray-800 truncate">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── LAYCAN SCHEDULE ── */}
+          {activeTab === 'laycan' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-5 h-5 text-blue-700" />
+                <h3 className="text-sm font-bold text-gray-700">Berth Allocation & Laycan Schedule</h3>
+              </div>
+              {/* Berth summary */}
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">Port of Mombasa — Berth Utilisation</p>
+                <div className="space-y-1.5">
+                  {['Berth 1 – KPC Kipevu', 'Berth 2 – KPC Kipevu', 'Berth 3 – Essar Jetty', 'Berth 4 – KPC Jetty 2'].map(berth => {
+                    const vessel = FTL_LAYCAN.find(l => l.berth === berth && (l.status === 'active' || l.status === 'confirmed'));
+                    return (
+                      <div key={berth} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${vessel ? (vessel.status === 'active' ? 'bg-green-100' : 'bg-blue-100') : 'bg-white'}`}>
+                        <Anchor className={`w-3.5 h-3.5 flex-shrink-0 ${vessel ? (vessel.status === 'active' ? 'text-green-700' : 'text-blue-700') : 'text-gray-400'}`} />
+                        <span className="font-semibold text-gray-700 flex-1 truncate">{berth}</span>
+                        {vessel
+                          ? <span className={`font-bold ${vessel.status === 'active' ? 'text-green-700' : 'text-blue-700'}`}>{vessel.vessel} · {vessel.status.toUpperCase()}</span>
+                          : <span className="text-gray-400">Available</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Laycan list */}
+              {FTL_LAYCAN.map(l => (
+                <div key={l.id} className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-2 h-full min-h-[40px] rounded-full flex-shrink-0 ${l.status === 'active' ? 'bg-green-500' : l.status === 'completed' ? 'bg-gray-400' : l.status === 'confirmed' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-sm text-gray-800">{l.vessel}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${laycanStatusBadge[l.status] || 'bg-gray-100 text-gray-700'}`}>{l.status}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{l.berth}</p>
+                    </div>
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold flex-shrink-0">{l.product}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs ml-5">
+                    {([
+                      ['Window Start', l.start],
+                      ['Window End',   l.end],
+                      ['Volume',       `${l.volume.toLocaleString()} L`],
+                      ['Shipping Agent', l.agent],
+                    ] as [string, string][]).map(([lbl, val]) => (
+                      <div key={lbl} className="flex gap-1 col-span-1">
+                        <span className="text-gray-400 flex-shrink-0">{lbl}:</span>
+                        <span className="font-semibold text-gray-800">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── QUALITY INSPECTION ── */}
+          {activeTab === 'quality' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="w-5 h-5 text-purple-700" />
+                <h3 className="text-sm font-bold text-gray-700">Fuel Quality Inspection & Laboratory Results</h3>
+              </div>
+              {FTL_LAB_TESTS.map(test => (
+                <div key={test.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${test.result === 'PASS' ? 'bg-green-100' : test.result === 'FAIL' ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                        <FlaskConical className={`w-5 h-5 ${test.result === 'PASS' ? 'text-green-700' : test.result === 'FAIL' ? 'text-red-700' : 'text-yellow-700'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="font-bold text-sm text-gray-800">{test.vessel}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${test.result === 'PASS' ? 'bg-green-100 text-green-800' : test.result === 'FAIL' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{test.result}</span>
+                        </div>
+                        <p className="text-xs text-gray-600">{test.product} · {test.lab}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Sampled: {test.sampledAt}{test.completedAt ? ` · Completed: ${test.completedAt}` : ' · In progress…'}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setExpandedTest(expandedTest === test.id ? null : test.id)}
+                      className="w-full flex items-center justify-between mt-3 pt-3 border-t text-xs text-blue-600 font-semibold hover:text-blue-800">
+                      <span>View Test Parameters ({test.tests.length})</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedTest === test.id ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {expandedTest === test.id && (
+                    <div className="border-t bg-gray-50 p-3">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-gray-500">
+                            <th className="text-left py-1 font-semibold">Parameter</th>
+                            <th className="text-left py-1 font-semibold">Standard</th>
+                            <th className="text-left py-1 font-semibold">Measured</th>
+                            <th className="text-center py-1 font-semibold">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {test.tests.map(row => (
+                            <tr key={row.param} className="border-t border-gray-200">
+                              <td className="py-1.5 text-gray-700">{row.param}</td>
+                              <td className="py-1.5 text-gray-500">{row.std}</td>
+                              <td className="py-1.5 font-mono text-gray-800">{row.measured}</td>
+                              <td className="py-1.5 text-center">
+                                {row.pass === null ? <span className="text-gray-400">—</span>
+                                  : row.pass ? <CheckCircle className="w-4 h-4 text-green-600 mx-auto" />
+                                  : <X className="w-4 h-4 text-red-600 mx-auto" />}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── CLEARANCE AUTHORIZATION ── */}
+          {activeTab === 'clearance' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <BadgeCheck className="w-5 h-5 text-green-700" />
+                <h3 className="text-sm font-bold text-gray-700">Discharge Clearance Workflow</h3>
+              </div>
+              <p className="text-xs text-gray-500">Multi-agency digital clearance: KEBS quality confirmation → EPRA regulatory approval → KRA customs → Discharge authorization.</p>
+              {FTL_CLEARANCES.map(clr => {
+                const steps = [
+                  { label: 'KEBS Quality', at: clr.kebsAt, Icon: FlaskConical },
+                  { label: 'EPRA Approval', at: clr.epraAt, Icon: Shield },
+                  { label: 'KRA Customs', at: clr.kraAt, Icon: Scale },
+                  { label: 'Discharge Auth.', at: clr.authAt, Icon: Award },
+                ];
+                const statusColor = clr.status === 'authorized' ? 'border-green-500 bg-green-50' : clr.status === 'rejected' ? 'border-red-500 bg-red-50' : 'border-yellow-400 bg-yellow-50';
+                const statusBadge = clr.status === 'authorized' ? 'bg-green-100 text-green-800' : clr.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                return (
+                  <div key={clr.id} className={`rounded-xl shadow-sm p-4 border-l-4 ${statusColor}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Ship className="w-5 h-5 text-blue-600" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-sm text-gray-800">{clr.vessel}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusBadge}`}>{clr.status.toUpperCase()}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{clr.product} · {clr.volume.toLocaleString()} L → {clr.depot}</p>
+                      </div>
+                    </div>
+                    {/* Steps */}
+                    <div className="space-y-2">
+                      {steps.map((step, idx) => {
+                        const done = !!step.at;
+                        const active = !done && (idx === 0 || !!steps[idx-1].at);
+                        return (
+                          <div key={step.label} className="flex items-center gap-3">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${done ? 'bg-green-500' : active ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                              {done ? <CheckCircle className="w-4 h-4 text-white" /> : <step.Icon className={`w-3.5 h-3.5 ${active ? 'text-white' : 'text-gray-400'}`} />}
+                            </div>
+                            <div className="flex-1">
+                              <p className={`text-xs font-semibold ${done ? 'text-green-800' : active ? 'text-blue-700' : 'text-gray-400'}`}>{step.label}</p>
+                              {done && <p className="text-xs text-gray-400">{step.at}</p>}
+                              {active && <p className="text-xs text-blue-400 animate-pulse">Awaiting…</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── DEPOT OFFLOAD ── */}
+          {activeTab === 'offload' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Warehouse className="w-5 h-5 text-orange-700" />
+                <h3 className="text-sm font-bold text-gray-700">Depot Offload Management</h3>
+              </div>
+              {FTL_OFFLOADS.map(off => {
+                const variance = off.volumeLoaded > 0 ? ((off.volumeLoaded - off.volumeReceived) / off.volumeLoaded * 100) : 0;
+                const statusColor = off.status === 'completed' ? 'bg-gray-50 border-gray-300' : off.status === 'in-progress' ? 'bg-green-50 border-green-400' : 'bg-yellow-50 border-yellow-300';
+                const statusBadge = off.status === 'completed' ? 'bg-gray-100 text-gray-700' : off.status === 'in-progress' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-700';
+                return (
+                  <div key={off.id} className={`rounded-xl shadow-sm p-4 border-l-4 ${statusColor}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-9 h-9 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Warehouse className="w-5 h-5 text-orange-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-sm text-gray-800">{off.vessel}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusBadge}`}>{off.status}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{off.product} → {off.depot}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3">
+                      <div className="flex gap-1"><span className="text-gray-400">Tank:</span><span className="font-semibold text-gray-800">{off.tank}</span></div>
+                      <div className="flex gap-1"><span className="text-gray-400">Clearance:</span><span className="font-mono text-gray-700">{off.clearance}</span></div>
+                      {off.startedAt && <div className="flex gap-1"><span className="text-gray-400">Started:</span><span className="font-semibold text-gray-800">{off.startedAt}</span></div>}
+                      {off.completedAt && <div className="flex gap-1"><span className="text-gray-400">Completed:</span><span className="font-semibold text-gray-800">{off.completedAt}</span></div>}
+                    </div>
+                    {off.status === 'completed' && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <p className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wide">Volume Reconciliation</p>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-blue-50 rounded-lg p-2">
+                            <p className="text-[10px] text-gray-500">Vessel Loaded</p>
+                            <p className="text-base font-black text-blue-700">{off.volumeLoaded.toLocaleString()}</p>
+                            <p className="text-[9px] text-gray-400">L</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-2">
+                            <p className="text-[10px] text-gray-500">Depot Received</p>
+                            <p className="text-base font-black text-green-700">{off.volumeReceived.toLocaleString()}</p>
+                            <p className="text-[9px] text-gray-400">L</p>
+                          </div>
+                          <div className={`rounded-lg p-2 ${variance > 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                            <p className="text-[10px] text-gray-500">Variance</p>
+                            <p className={`text-base font-black ${variance > 1 ? 'text-red-700' : 'text-gray-700'}`}>{variance.toFixed(2)}%</p>
+                            <p className="text-[9px] text-gray-400">{(off.volumeLoaded - off.volumeReceived).toLocaleString()} L</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {off.status === 'in-progress' && (
+                      <div className="flex items-center gap-2 text-xs text-green-700 font-semibold mt-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        Discharge in progress — flow meter monitoring active
+                      </div>
+                    )}
+                    {off.status === 'pending' && (
+                      <p className="text-xs text-yellow-700 font-semibold mt-1">⏳ Awaiting clearance authorization</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  };
+
   // ── REPORTS ──
   const ReportsView = () => {
     const [activeReport, setActiveReport] = useState<string | null>(null);
@@ -3424,7 +3979,7 @@ const FuelIntegrityApp = () => {
     const allNavItems = [
       { view: 'dashboard', icon: Home,        label: t('nav.home')     },
       { view: 'sct',       icon: Truck,       label: t('nav.sct')      },
-      { view: 'tracking',  icon: Navigation,  label: t('nav.tracking') },
+      { view: 'trading',   icon: Anchor,      label: 'Trading' },
       { view: 'wsm',       icon: Package,     label: t('nav.wsm')      },
       { view: 'incidents', icon: AlertCircle, label: t('nav.alerts')   },
       { view: 'reports',   icon: BarChart3,   label: t('nav.reports')  },
@@ -3451,6 +4006,7 @@ const FuelIntegrityApp = () => {
         </div>
         <div className="p-4 space-y-2">
           <button onClick={() => { setCurrentView('tracking'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Navigation className="w-5 h-5 text-green-600" /><span>{t('nav.cargoTracking')}</span></button>
+          <button onClick={() => { setCurrentView('trading'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-blue-50 flex items-center gap-3"><Anchor className="w-5 h-5 text-blue-600" /><span>Trading Platform</span></button>
           <button onClick={() => { setCurrentView('profiles'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><span>{t('nav.profile')}</span></button>
           <button onClick={() => { setCurrentView('settings'); setMenuOpen(false); }} className="w-full text-left p-3 rounded hover:bg-green-50 flex items-center gap-3"><Settings className="w-5 h-5 text-green-600" /><span>{t('nav.settings')}</span></button>
           <button onClick={handleLogout} className="w-full text-left p-3 rounded hover:bg-red-50 flex items-center gap-3 text-red-600"><X className="w-5 h-5" /><span>{t('nav.logout')}</span></button>
@@ -3527,6 +4083,7 @@ const FuelIntegrityApp = () => {
       {currentView === 'wsm' && hasAccess('wsm') && <DirectoryView />}
       {currentView === 'incidents' && hasAccess('incidents') && <IncidentsView />}
       {currentView === 'reports' && hasAccess('reports') && <ReportsView />}
+      {currentView === 'trading' && <TradingView />}
       {currentView === 'directory' && <DirectoryView />}
       {currentView === 'settings' && <SettingsView />}
       {currentView === 'profiles' && <ProfilesView />}
