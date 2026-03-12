@@ -3978,8 +3978,8 @@ const FuelIntegrityApp = () => {
     const rolePerms = profilePermissions[userRole] || {};
     const allNavItems = [
       { view: 'dashboard', icon: Home,        label: t('nav.home')     },
-      { view: 'sct',       icon: Truck,       label: t('nav.sct')      },
       { view: 'trading',   icon: Anchor,      label: 'Trading' },
+      { view: 'sct',       icon: Truck,       label: t('nav.sct')      },
       { view: 'wsm',       icon: Package,     label: t('nav.wsm')      },
       { view: 'incidents', icon: AlertCircle, label: t('nav.alerts')   },
       { view: 'reports',   icon: BarChart3,   label: t('nav.reports')  },
